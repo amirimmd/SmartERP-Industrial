@@ -4,80 +4,56 @@
 @using Microsoft.EntityFrameworkCore
 @inject AppDbContext DbContext
 
-<div class="module-header" style="animation: fadeIn 0.4s ease-out;">
+<div class="module-header">
     <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 2rem;">
         <div>
-            <h1 style="color: var(--primary-color); font-weight: 700; font-size: 1.8rem; margin-bottom: 0.5rem; text-shadow: var(--shadow-neon);">انبار و محصولات</h1>
-            <p style="color: var(--text-muted); margin: 0; font-size: 0.95rem;">مدیریت موجودی، قیمت‌گذاری و کاتالوگ قطعات</p>
+            <h1 style="color: var(--primary-color); font-weight: 800; font-size: 1.8rem; margin-bottom: 0.5rem;">انبار و محصولات</h1>
+            <p style="color: var(--text-muted); margin: 0; font-size: 0.95rem;">مدیریت موجودی قطعات و کاتالوگ فروش</p>
         </div>
-        <button class="btn-primary" @onclick="OpenAddModal" style="display: flex; align-items: center; gap: 0.5rem;">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
-            ثبت کالای جدید
-        </button>
+        <button class="btn-primary" @onclick="OpenAddModal">ثبت کالای جدید</button>
     </div>
 
-    <!-- فیلتر و جستجو -->
     <div class="card" style="margin-bottom: 1.5rem; padding: 1rem 1.5rem; display: flex; gap: 1rem; align-items: center;">
         <div style="position: relative; flex-grow: 1;">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="2" style="position: absolute; right: 1rem; top: 50%; transform: translateY(-50%);"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
-            <input type="text" @bind="searchQuery" @bind:event="oninput" placeholder="جستجو بر اساس کد قطعه یا نام کالا..." style="width: 100%; background: #0f172a; border: 1px solid var(--border-color); color: var(--text-main); padding: 0.6rem 2.5rem 0.6rem 1rem; border-radius: var(--radius-md); font-family: var(--font-fa); outline: none; transition: all 0.3s;">
+            <input type="text" @bind="searchQuery" @bind:event="oninput" placeholder="جستجوی سریع قطعات ..." class="input-field" style="margin-bottom: 0; border-radius: 20px;" />
         </div>
-        <div style="color: var(--text-muted); font-size: 0.9rem;">
-            تعداد کل: <span style="color: var(--primary-color); font-weight: bold; font-family: var(--font-en);">@filteredProducts.Count</span> قلم
+        <div style="color: var(--text-muted); font-size: 0.9rem; font-weight: bold;">
+            کل قطعات: <span style="color: var(--primary-color); font-family: var(--font-en);">@filteredProducts.Count</span>
         </div>
     </div>
 
-    <!-- جدول محصولات -->
     <div class="card" style="padding: 0; overflow-x: auto;">
         <table class="industrial-table" style="width: 100%; border-collapse: collapse;">
             <thead>
-                <tr style="background-color: rgba(30, 41, 59, 0.5); border-bottom: 2px solid var(--border-color);">
-                    <th style="padding: 1.2rem 1.5rem; text-align: right; color: var(--text-muted); font-weight: 500;">کد قطعه</th>
-                    <th style="padding: 1.2rem 1.5rem; text-align: right; color: var(--text-muted); font-weight: 500;">شرح کالا</th>
-                    <th style="padding: 1.2rem 1.5rem; text-align: right; color: var(--text-muted); font-weight: 500;">موجودی</th>
-                    <th style="padding: 1.2rem 1.5rem; text-align: right; color: var(--text-muted); font-weight: 500;">قیمت واحد (ریال)</th>
-                    <th style="padding: 1.2rem 1.5rem; text-align: center; color: var(--text-muted); font-weight: 500;">عملیات</th>
+                <tr>
+                    <th style="padding: 1.2rem 1.5rem; text-align: right;">کد قطعه</th>
+                    <th style="padding: 1.2rem 1.5rem; text-align: right;">شرح کالا</th>
+                    <th style="padding: 1.2rem 1.5rem; text-align: right;">موجودی</th>
+                    <th style="padding: 1.2rem 1.5rem; text-align: right;">قیمت پایه (ریال)</th>
+                    <th style="padding: 1.2rem 1.5rem; text-align: center;">ویرایش</th>
                 </tr>
             </thead>
             <tbody>
                 @if (isLoading)
                 {
-                    <tr>
-                        <td colspan="5" style="padding: 3rem; text-align: center;">
-                            <div class="loader-pulse-ring" style="position: relative; margin: 0 auto; width: 40px; height: 40px;"></div>
-                        </td>
-                    </tr>
+                    <tr><td colspan="5" style="padding: 3rem; text-align: center;"><div class="loader-pulse-ring" style="margin: 0 auto;"></div></td></tr>
                 }
                 else if (!filteredProducts.Any())
                 {
-                    <tr>
-                        <td colspan="5" style="padding: 4rem 2rem; text-align: center; color: var(--text-muted);">
-                            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--border-color)" stroke-width="1.5" style="margin-bottom: 1rem;"><line x1="16.5" y1="9.4" x2="7.5" y2="4.21"></line><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg>
-                            <p>هیچ کالایی در انبار یافت نشد.</p>
-                        </td>
-                    </tr>
+                    <tr><td colspan="5" style="padding: 4rem 2rem; text-align: center; color: var(--text-muted);"><p>موجودی یافت نشد.</p></td></tr>
                 }
                 else
                 {
                     @foreach (var product in filteredProducts)
                     {
-                        <tr style="border-bottom: 1px solid var(--border-color); transition: background-color 0.2s;" class="table-row-hover">
-                            <td style="padding: 1rem 1.5rem; font-family: var(--font-en); color: var(--primary-color);">@product.Code</td>
-                            <td style="padding: 1rem 1.5rem; font-weight: 500;">@product.Name</td>
-                            <td style="padding: 1rem 1.5rem;">
-                                <div style="display: flex; align-items: baseline; gap: 0.3rem;">
-                                    <span class="industrial-num" style="color: @(product.StockQuantity <= 5 ? "var(--danger)" : "var(--success)")">@product.StockQuantity</span>
-                                    <span style="font-size: 0.8rem; color: var(--text-muted);">@product.Unit</span>
-                                </div>
-                            </td>
+                        <tr class="table-row-hover">
+                            <td style="padding: 1rem 1.5rem; font-family: var(--font-en); color: var(--primary-color); font-weight: bold;">@product.Code</td>
+                            <td style="padding: 1rem 1.5rem; font-weight: bold; color: var(--text-main);">@product.Name</td>
+                            <td style="padding: 1rem 1.5rem; font-family: var(--font-en); color: @(product.StockQuantity <= 5 ? "var(--danger)" : "var(--success)"); font-weight: bold;">@product.StockQuantity <span style="font-size: 0.8rem; color: var(--text-muted); font-family: var(--font-fa);">@product.Unit</span></td>
                             <td style="padding: 1rem 1.5rem; font-family: var(--font-en);">@product.Price.ToString("N0")</td>
                             <td style="padding: 1rem 1.5rem; text-align: center;">
-                                <button style="background: none; border: none; color: var(--accent-color); cursor: pointer; padding: 0.5rem;" @onclick="() => OpenEditModal(product)" title="ویرایش">
-                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
-                                </button>
-                                <button style="background: none; border: none; color: var(--danger); cursor: pointer; padding: 0.5rem;" @onclick="() => DeleteProduct(product)" title="حذف">
-                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
-                                </button>
+                                <button style="background: none; border: none; color: var(--accent-color); cursor: pointer; padding: 0.5rem;" @onclick="() => OpenEditModal(product)">ویرایش</button>
+                                <button style="background: none; border: none; color: var(--danger); cursor: pointer; padding: 0.5rem;" @onclick="() => DeleteProduct(product)">حذف</button>
                             </td>
                         </tr>
                     }
@@ -87,191 +63,95 @@
     </div>
 </div>
 
-<!-- Modal ثبت / ویرایش کالا -->
 @if (isModalOpen)
 {
-    <div style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background-color: rgba(15, 23, 42, 0.8); backdrop-filter: blur(5px); z-index: 100; display: flex; align-items: center; justify-content: center; animation: fadeIn 0.2s;">
-        <div class="card" style="width: 100%; max-width: 500px; box-shadow: 0 20px 50px rgba(0,0,0,0.5);">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; border-bottom: 1px solid var(--border-color); padding-bottom: 1rem;">
-                <h2 style="font-size: 1.2rem; color: var(--primary-color);">@(editingProduct.Id == 0 ? "ثبت کالای جدید" : "ویرایش کالا")</h2>
-                <button style="background: none; border: none; color: var(--text-muted); cursor: pointer;" @onclick="CloseModal">
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-                </button>
+    <div style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background-color: rgba(9, 9, 11, 0.9); z-index: 100; display: flex; align-items: center; justify-content: center;">
+        <div class="card" style="width: 100%; max-width: 500px; border-top: 3px solid var(--primary-color);">
+            <div style="margin-bottom: 1.5rem; border-bottom: 1px solid var(--border-color); padding-bottom: 1rem;">
+                <h2 style="font-size: 1.2rem; color: var(--text-main); font-weight: 800;">@(editingProduct.Id == 0 ? "ثبت کالای جدید" : "ویرایش کالا")</h2>
             </div>
 
-            <div class="form-group" style="margin-bottom: 1rem;">
+            <div class="form-group">
                 <label style="display: block; margin-bottom: 0.5rem; color: var(--text-muted);">کد قطعه / سریال</label>
-                <input type="text" @bind="editingProduct.Code" class="input-field" style="font-family: var(--font-en);" placeholder="مثال: PRD-1001" />
+                <input type="text" @bind="editingProduct.Code" class="input-field" style="font-family: var(--font-en);" />
             </div>
 
-            <div class="form-group" style="margin-bottom: 1rem;">
-                <label style="display: block; margin-bottom: 0.5rem; color: var(--text-muted);">نام کالا / شرح</label>
-                <input type="text" @bind="editingProduct.Name" class="input-field" placeholder="نام محصول را وارد کنید" />
+            <div class="form-group">
+                <label style="display: block; margin-bottom: 0.5rem; color: var(--text-muted);">نام کالا</label>
+                <input type="text" @bind="editingProduct.Name" class="input-field" />
             </div>
 
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
                 <div class="form-group">
                     <label style="display: block; margin-bottom: 0.5rem; color: var(--text-muted);">موجودی اولیه</label>
                     <input type="number" @bind="editingProduct.StockQuantity" class="input-field" style="font-family: var(--font-en);" />
                 </div>
                 <div class="form-group">
                     <label style="display: block; margin-bottom: 0.5rem; color: var(--text-muted);">واحد شمارش</label>
-                    <select @bind="editingProduct.Unit" class="input-field" style="appearance: none; background-image: url('data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%2394a3b8%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E'); background-repeat: no-repeat; background-position: left 1rem top 50%; background-size: 0.65rem auto;">
-                        <option value="عدد">عدد</option>
-                        <option value="دستگاه">دستگاه</option>
-                        <option value="کیلوگرم">کیلوگرم</option>
-                        <option value="متر">متر</option>
-                        <option value="بسته">بسته</option>
-                        <option value="شاخه">شاخه</option>
-                    </select>
+                    <input type="text" @bind="editingProduct.Unit" class="input-field" />
                 </div>
             </div>
 
-            <div class="form-group" style="margin-bottom: 1.5rem;">
-                <label style="display: block; margin-bottom: 0.5rem; color: var(--text-muted);">قیمت پایه واحد (ریال)</label>
+            <div class="form-group" style="margin-bottom: 2rem;">
+                <label style="display: block; margin-bottom: 0.5rem; color: var(--text-muted);">قیمت پایه (ریال)</label>
                 <input type="number" @bind="editingProduct.Price" class="input-field" style="font-family: var(--font-en);" />
             </div>
 
-            <div style="display: flex; gap: 1rem; margin-top: 2rem;">
-                <button class="btn-primary" style="flex: 1;" @onclick="SaveProduct">ثبت کالا در سیستم</button>
-                <button style="flex: 1; background: transparent; border: 1px solid var(--border-color); color: var(--text-main); border-radius: var(--radius-md); cursor: pointer;" @onclick="CloseModal">انصراف</button>
+            <div style="display: flex; gap: 1rem;">
+                <button class="btn-primary" style="flex: 1;" @onclick="SaveProduct">ذخیره کالا</button>
+                <button style="flex: 1; background: var(--bg-color); border: 1px solid var(--border-color); color: var(--text-main); border-radius: var(--radius-md); cursor: pointer; font-weight: bold;" @onclick="CloseModal">انصراف</button>
             </div>
         </div>
     </div>
 }
-
-<style>
-    .table-row-hover:hover {
-        background-color: rgba(56, 189, 248, 0.05);
-    }
-    @@keyframes fadeIn {
-        from { opacity: 0; transform: translateY(10px); }
-        to { opacity: 1; transform: translateY(0); }
-    }
-</style>
 
 @code {
     private List<Product> products = new();
     private List<Product> filteredProducts = new();
     private bool isLoading = true;
     private string _searchQuery = "";
-    
-    // Modal State
     private bool isModalOpen = false;
     private Product editingProduct = new();
 
-    private string searchQuery
-    {
-        get => _searchQuery;
-        set
-        {
-            _searchQuery = value;
-            FilterProducts();
-        }
-    }
+    private string searchQuery { get => _searchQuery; set { _searchQuery = value; FilterProducts(); } }
 
     protected override async Task OnInitializedAsync()
     {
+        // 🚀 سرعت بالا: بدون چک کردن دیتابیس
+        await Task.Yield();
         await LoadProducts();
     }
 
     private async Task LoadProducts()
     {
         isLoading = true;
-        try
-        {
-            products = await DbContext.Products.AsNoTracking().ToListAsync();
-            filteredProducts = products.ToList();
-        }
-        finally
-        {
-            isLoading = false;
-        }
+        try { products = await DbContext.Products.AsNoTracking().ToListAsync(); filteredProducts = products.ToList(); }
+        finally { isLoading = false; }
     }
 
     private void FilterProducts()
     {
-        if (string.IsNullOrWhiteSpace(searchQuery))
-        {
-            filteredProducts = products.ToList();
-        }
-        else
-        {
-            var q = searchQuery.ToLower();
-            filteredProducts = products.Where(p => 
-                (p.Name != null && p.Name.ToLower().Contains(q)) || 
-                (p.Code != null && p.Code.ToLower().Contains(q))
-            ).ToList();
-        }
+        if (string.IsNullOrWhiteSpace(searchQuery)) { filteredProducts = products.ToList(); }
+        else { var q = searchQuery.ToLower(); filteredProducts = products.Where(p => (p.Name != null && p.Name.ToLower().Contains(q)) || (p.Code != null && p.Code.ToLower().Contains(q))).ToList(); }
     }
 
-    private void OpenAddModal()
-    {
-        editingProduct = new Product { Unit = "عدد" }; // پیش‌فرض‌ها
-        isModalOpen = true;
-    }
-
-    private void OpenEditModal(Product p)
-    {
-        // ساخت یک کپی برای ویرایش تا اگر انصراف زد، داده اصلی در جدول عوض نشود
-        editingProduct = new Product
-        {
-            Id = p.Id,
-            Code = p.Code,
-            Name = p.Name,
-            Price = p.Price,
-            StockQuantity = p.StockQuantity,
-            Unit = p.Unit
-        };
-        isModalOpen = true;
-    }
-
-    private void CloseModal()
-    {
-        isModalOpen = false;
-        editingProduct = new();
-    }
+    private void OpenAddModal() { editingProduct = new Product { Unit = "عدد" }; isModalOpen = true; }
+    private void OpenEditModal(Product p) { editingProduct = new Product { Id = p.Id, Code = p.Code, Name = p.Name, Price = p.Price, StockQuantity = p.StockQuantity, Unit = p.Unit }; isModalOpen = true; }
+    private void CloseModal() { isModalOpen = false; }
 
     private async Task SaveProduct()
     {
-        if (string.IsNullOrWhiteSpace(editingProduct.Name) || string.IsNullOrWhiteSpace(editingProduct.Code))
-            return; // در اینجا می‌توانید یک پیغام خطا اضافه کنید
-
+        if (string.IsNullOrWhiteSpace(editingProduct.Name) || string.IsNullOrWhiteSpace(editingProduct.Code)) return;
         try
         {
-            if (editingProduct.Id == 0)
-            {
-                // کالای جدید
-                DbContext.Products.Add(editingProduct);
-            }
-            else
-            {
-                // آپدیت کالای موجود
-                DbContext.Products.Update(editingProduct);
-            }
-
-            await DbContext.SaveChangesAsync();
-            await LoadProducts(); // رفرش جدول
-            CloseModal();
+            if (editingProduct.Id == 0) DbContext.Products.Add(editingProduct); else DbContext.Products.Update(editingProduct);
+            await DbContext.SaveChangesAsync(); await LoadProducts(); CloseModal();
         }
-        catch (Exception)
-        {
-            // مدیریت خطا
-        }
+        catch (Exception) { }
     }
 
     private async Task DeleteProduct(Product p)
     {
-        // در یک پروژه واقعی باید فرم تایید حذف گذاشت (Confirm)
-        try
-        {
-            DbContext.Products.Remove(p);
-            await DbContext.SaveChangesAsync();
-            await LoadProducts();
-        }
-        catch (Exception)
-        {
-            // مدیریت خطا
-        }
+        try { DbContext.Products.Remove(p); await DbContext.SaveChangesAsync(); await LoadProducts(); } catch (Exception) { }
     }
 }
