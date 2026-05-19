@@ -1,0 +1,208 @@
+@page "/company-settings"
+@using SmartERP.Core
+@using SmartERP.Infrastructure
+@using Microsoft.EntityFrameworkCore
+@using Microsoft.AspNetCore.Components.Forms
+@inject AppDbContext DbContext
+
+<div class="module-header" style="animation: fadeIn 0.3s ease-out;">
+    <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 2rem;">
+        <div>
+            <h1 style="color: var(--primary-color); font-weight: 700; font-size: 1.8rem; margin-bottom: 0.5rem; text-shadow: var(--shadow-neon);">تنظیمات و اطلاعات شرکت</h1>
+            <p style="color: var(--text-muted); margin: 0; font-size: 0.95rem;">مدیریت اطلاعات پایه مجموعه جهت درج در سربرگ فاکتورها و اسناد رسمی کارخانه</p>
+        </div>
+    </div>
+
+    @if (isLoading)
+    {
+        <div class="card" style="display: flex; justify-content: center; align-items: center; height: 40vh;">
+            <div class="loader-pulse-ring" style="position: relative; margin: 0 auto; width: 50px; height: 50px;"></div>
+        </div>
+    }
+    else
+    {
+        <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 2rem;">
+            <div class="card" style="padding: 2.5rem;">
+                <h2 style="font-size: 1.2rem; color: var(--text-main); margin-bottom: 1.5rem; border-bottom: 1px solid var(--border-color); padding-bottom: 0.5rem; font-weight: 600;">مشخصات و هویت حقوقی</h2>
+                
+                @if (showSuccessAlert)
+                {
+                    <div style="background-color: rgba(34, 197, 94, 0.1); border: 1px solid var(--success); color: var(--success); padding: 1rem; border-radius: var(--radius-md); margin-bottom: 1.5rem; display: flex; align-items: center; gap: 0.5rem; animation: fadeIn 0.2s;">
+                        <span>✅</span> اطلاعات مجموعه با موفقیت روی بانک اطلاعاتی به‌روزرسانی شد.
+                    </div>
+                }
+
+                @if (!string.IsNullOrEmpty(errorMessage))
+                {
+                    <div style="background-color: rgba(239, 68, 68, 0.1); border: 1px solid var(--danger); color: var(--danger); padding: 1rem; border-radius: var(--radius-md); margin-bottom: 1.5rem; display: flex; align-items: center; gap: 0.5rem;">
+                        <span>⚠️</span> @errorMessage
+                    </div>
+                }
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin-bottom: 1.5rem;">
+                    <div class="form-group">
+                        <label style="display: block; margin-bottom: 0.5rem; color: var(--text-muted); font-size: 0.9rem;">نام شرکت / مجموعه صنعتی</label>
+                        <input type="text" @bind="setting.CompanyName" class="input-field" placeholder="مثال: گروه صنعتی مشعوف" />
+                    </div>
+                    <div class="form-group">
+                        <label style="display: block; margin-bottom: 0.5rem; color: var(--text-muted); font-size: 0.9rem;">نام مدیریت عامل / مسئول</label>
+                        <input type="text" @bind="setting.ManagerName" class="input-field" placeholder="مثال: حسام مشعوف" />
+                    </div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin-bottom: 1.5rem;">
+                    <div class="form-group">
+                        <label style="display: block; margin-bottom: 0.5rem; color: var(--text-muted); font-size: 0.9rem;">شماره تماس / تلفن ثابت کارخانه</label>
+                        <input type="text" @bind="setting.PhoneNumber" class="input-field" style="font-family: var(--font-en); text-align: left;" placeholder="مثال: 09110000000" />
+                    </div>
+                    <div class="form-group">
+                        <label style="display: block; margin-bottom: 0.5rem; color: var(--text-muted); font-size: 0.9rem;">نرخ ارزش افزوده پیش‌فرض (درصد مالیات فاکتور)</label>
+                        <input type="number" @bind="taxRatePercent" class="input-field" style="font-family: var(--font-en);" min="0" max="100" step="0.1" />
+                    </div>
+                </div>
+
+                <div class="form-group" style="margin-bottom: 1.5rem;">
+                    <label style="display: block; margin-bottom: 0.5rem; color: var(--text-muted); font-size: 0.9rem;">شعار تبلیغاتی / متن توضیحی پایین سربرگ</label>
+                    <input type="text" @bind="setting.Slogan" class="input-field" placeholder="مثال: تولید کننده انواع چهارچوب فلزی و درب ضد سرقت" />
+                </div>
+
+                <div class="form-group" style="margin-bottom: 2rem;">
+                    <label style="display: block; margin-bottom: 0.5rem; color: var(--text-muted); font-size: 0.9rem;">آدرس کارخانه / دفتر فروش اصلی</label>
+                    <textarea @bind="setting.Address" rows="3" class="input-field" style="height: auto; resize: none;" placeholder="آدرس دقیق جهت چاپ بر روی فاکتورها..."></textarea>
+                </div>
+
+                <button class="btn-primary" @onclick="SaveChanges" style="width: 200px; display: flex; align-items: center; justify-content: center; gap: 0.5rem;">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
+                    ذخیره تغییرات
+                </button>
+            </div>
+
+            <div class="card" style="padding: 2.5rem; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; text-align: center;">
+                <h2 style="font-size: 1.2rem; color: var(--text-main); margin-bottom: 1.5rem; border-bottom: 1px solid var(--border-color); padding-bottom: 0.5rem; width: 100%; font-weight: 600;">لوگوی رسمی سربرگ</h2>
+                
+                <div class="logo-upload-container" onclick="document.getElementById('pageLogoInput').click()" style="border: 2px dashed var(--border-color); border-radius: var(--radius-lg); padding: 2rem; width: 100%; max-width: 220px; cursor: pointer; transition: all 0.3s ease; background-color: #0f172a; margin-bottom: 1.5rem;">
+                    @if (string.IsNullOrEmpty(setting.LogoPath))
+                    {
+                        <div style="font-size: 3rem; color: var(--text-muted); margin-bottom: 1rem;">📸</div>
+                        <p style="color: var(--text-muted); font-size: 0.85rem; margin: 0;">جهت بارگذاری تصویر کلیک کنید</p>
+                    }
+                    else
+                    {
+                        <img src="@setting.LogoPath" style="max-width: 100%; max-height: 150px; border-radius: var(--radius-md); box-shadow: var(--shadow-neon); margin-bottom: 1rem;" alt="Company Logo" />
+                        <p style="color: var(--primary-color); font-size: 0.8rem; margin: 0; font-weight: bold;">برای تغییر لوگو کلیک کنید</p>
+                    }
+                    <InputFile id="pageLogoInput" style="display: none;" OnChange="HandleLogoUpload" accept="image/png, image/jpeg" />
+                </div>
+                
+                <p style="color: var(--text-muted); font-size: 0.8rem; line-height: 1.6; margin: 0;">
+                    فرمت‌های مجاز فایل: PNG, JPG<br />
+                    حداکثر محدوده حجم: ۲ مگابایت
+                </p>
+            </div>
+        </div>
+    }
+</div>
+
+<style>
+    .logo-upload-container:hover {
+        border-color: var(--primary-color) !important;
+        background-color: rgba(56, 189, 248, 0.02) !important;
+    }
+    @@keyframes fadeIn {
+        from { opacity: 0; transform: translateY(8px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+</style>
+
+@code {
+    private CompanySetting setting = new();
+    private bool isLoading = true;
+    private bool showSuccessAlert = false;
+    private string errorMessage = "";
+    private decimal taxRatePercent = 9;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // 🚀 موتور شتاب‌دهنده پر سرعت جابه‌جایی تب‌ها بدون کوچکترین افت فریم
+        await Task.Yield();
+        await LoadCompanySettings();
+    }
+
+    private async Task LoadCompanySettings()
+    {
+        isLoading = true;
+        try
+        {
+            await DbContext.Database.EnsureCreatedAsync();
+            var existing = await DbContext.CompanySettings.FirstOrDefaultAsync();
+            if (existing != null)
+            {
+                setting = existing;
+                taxRatePercent = setting.DefaultTaxRate * 100;
+            }
+            else
+            {
+                setting = new CompanySetting();
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = "خطا در برقراری ارتباط با دیتابیس: " + ex.Message;
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task HandleLogoUpload(InputFileChangeEventArgs e)
+    {
+        errorMessage = "";
+        showSuccessAlert = false;
+        var file = e.File;
+        const long maxFileSize = 2 * 1024 * 1024;
+
+        if (file.Size > maxFileSize)
+        {
+            errorMessage = "حجم فایل لوگو نباید فراتر از ۲ مگابایت باشد.";
+            return;
+        }
+
+        try
+        {
+            var buffer = new byte[file.Size];
+            using var stream = file.OpenReadStream(maxFileSize);
+            await stream.ReadAsync(buffer);
+            var base64 = Convert.ToBase64String(buffer);
+            setting.LogoPath = $"data:{file.ContentType};base64,{base64}";
+        }
+        catch (Exception)
+        {
+            errorMessage = "امکان پردازش و فشرده‌سازی این تصویر وجود ندارد.";
+        }
+    }
+
+    private async Task SaveChanges()
+    {
+        if (string.IsNullOrWhiteSpace(setting.CompanyName))
+        {
+            errorMessage = "ثبت نام مجموعه صنعتی شما الزامی است.";
+            return;
+        }
+
+        errorMessage = "";
+        showSuccessAlert = false;
+
+        try
+        {
+            setting.DefaultTaxRate = taxRatePercent / 100;
+            DbContext.CompanySettings.Update(setting);
+            await DbContext.SaveChangesAsync();
+            showSuccessAlert = true;
+        }
+        catch (Exception ex)
+        {
+            errorMessage = "خطا در ذخیره‌سازی داده‌ها بر روی دیسک سخت: " + ex.Message;
+        }
+    }
+}

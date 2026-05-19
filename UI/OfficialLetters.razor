@@ -1,0 +1,192 @@
+@page "/letters"
+@using SmartERP.Core
+@using SmartERP.Infrastructure
+@using Microsoft.EntityFrameworkCore
+@inject AppDbContext DbContext
+
+<div class="module-header" style="animation: fadeIn 0.3s ease-out;">
+    <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 2rem;">
+        <div>
+            <h1 style="color: var(--primary-color); font-weight: 700; font-size: 1.8rem; margin-bottom: 0.5rem; text-shadow: var(--shadow-neon);">دبیرخانه و نامه‌های رسمی</h1>
+            <p style="color: var(--text-muted); margin: 0; font-size: 0.95rem;">ثبت، صدور و بایگانی نامه‌های اداری، قراردادها و استعلامات</p>
+        </div>
+        <button class="btn-primary" @onclick="OpenAddModal" style="display: flex; align-items: center; gap: 0.5rem;">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
+            ایجاد نامه جدید
+        </button>
+    </div>
+
+    <!-- جدول دبیرخانه -->
+    <div class="card" style="padding: 0; overflow-x: auto;">
+        <table class="industrial-table" style="width: 100%; border-collapse: collapse;">
+            <thead>
+                <tr style="background-color: rgba(30, 41, 59, 0.5); border-bottom: 2px solid var(--border-color);">
+                    <th style="padding: 1.2rem 1.5rem; text-align: right; color: var(--text-muted); font-weight: 500;">شماره نامه</th>
+                    <th style="padding: 1.2rem 1.5rem; text-align: right; color: var(--text-muted); font-weight: 500;">موضوع نامه</th>
+                    <th style="padding: 1.2rem 1.5rem; text-align: right; color: var(--text-muted); font-weight: 500;">گیرنده / شخص</th>
+                    <th style="padding: 1.2rem 1.5rem; text-align: right; color: var(--text-muted); font-weight: 500;">تاریخ صدور</th>
+                    <th style="padding: 1.2rem 1.5rem; text-align: center; color: var(--text-muted); font-weight: 500;">عملیات</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (isLoading)
+                {
+                    <tr>
+                        <td colspan="5" style="padding: 3rem; text-align: center;">
+                            <div class="loader-pulse-ring" style="position: relative; margin: 0 auto; width: 40px; height: 40px;"></div>
+                        </td>
+                    </tr>
+                }
+                else if (!letters.Any())
+                {
+                    <tr>
+                        <td colspan="5" style="padding: 4rem 2rem; text-align: center; color: var(--text-muted);">
+                            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--border-color)" stroke-width="1.5" style="margin-bottom: 1rem;"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg>
+                            <p>صندوق دبیرخانه خالی است. هنوز نامه‌ای ثبت نشده است.</p>
+                        </td>
+                    </tr>
+                }
+                else
+                {
+                    @foreach (var l in letters)
+                    {
+                        <tr style="border-bottom: 1px solid var(--border-color); transition: background-color 0.2s;" class="table-row-hover">
+                            <td style="padding: 1rem 1.5rem; font-family: var(--font-en); color: var(--primary-color);">@l.LetterNumber</td>
+                            <td style="padding: 1rem 1.5rem; font-weight: bold; color: var(--text-main);">@l.Subject</td>
+                            <td style="padding: 1rem 1.5rem; color: var(--text-muted);">@l.Recipient</td>
+                            <td style="padding: 1rem 1.5rem; font-family: var(--font-en);">@l.IssueDate.ToString("yyyy/MM/dd")</td>
+                            <td style="padding: 1rem 1.5rem; text-align: center; display: flex; gap: 0.5rem; justify-content: center;">
+                                <button style="background: rgba(56, 189, 248, 0.1); border: 1px solid var(--primary-color); color: var(--primary-color); border-radius: 5px; cursor: pointer; padding: 0.4rem 0.8rem; font-size: 0.85rem;" @onclick="() => ViewLetter(l)">مشاهده</button>
+                                <button style="background: none; border: none; color: var(--danger); cursor: pointer; padding: 0.5rem;" @onclick="() => DeleteLetter(l)">
+                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                                </button>
+                            </td>
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Modal ویرایش / ثبت نامه -->
+@if (isModalOpen)
+{
+    <div style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background-color: rgba(15, 23, 42, 0.9); backdrop-filter: blur(5px); z-index: 100; display: flex; align-items: center; justify-content: center; animation: fadeIn 0.2s;">
+        <div class="card" style="width: 100%; max-width: 800px; max-height: 90vh; overflow-y: auto; box-shadow: 0 20px 50px rgba(0,0,0,0.5);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; border-bottom: 1px solid var(--border-color); padding-bottom: 1rem;">
+                <h2 style="font-size: 1.3rem; color: var(--primary-color);">@((viewOnly) ? "مشاهده نامه" : "ثبت نامه جدید")</h2>
+                <button style="background: none; border: none; color: var(--text-muted); cursor: pointer;" @onclick="CloseModal">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                </button>
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
+                <div class="form-group">
+                    <label style="display: block; margin-bottom: 0.5rem; color: var(--text-muted);">شماره نامه (اتوماسیون)</label>
+                    <input type="text" @bind="editingLetter.LetterNumber" class="input-field" style="font-family: var(--font-en);" readonly="@viewOnly" />
+                </div>
+                <div class="form-group">
+                    <label style="display: block; margin-bottom: 0.5rem; color: var(--text-muted);">گیرنده (شخص / شرکت)</label>
+                    <input type="text" @bind="editingLetter.Recipient" class="input-field" readonly="@viewOnly" />
+                </div>
+            </div>
+
+            <div class="form-group" style="margin-bottom: 1rem;">
+                <label style="display: block; margin-bottom: 0.5rem; color: var(--text-muted);">موضوع نامه</label>
+                <input type="text" @bind="editingLetter.Subject" class="input-field" readonly="@viewOnly" />
+            </div>
+
+            <div class="form-group" style="margin-bottom: 1.5rem;">
+                <label style="display: block; margin-bottom: 0.5rem; color: var(--text-muted);">متن و شرح نامه</label>
+                <textarea @bind="editingLetter.Content" class="input-field" style="min-height: 250px; resize: vertical; line-height: 1.8; text-align: justify;" readonly="@viewOnly"></textarea>
+            </div>
+
+            <div style="display: flex; gap: 1rem; margin-top: 1rem;">
+                @if (!viewOnly)
+                {
+                    <button class="btn-primary" style="flex: 1;" @onclick="SaveLetter">ذخیره و صدور نامه</button>
+                }
+                <button style="flex: 1; background: transparent; border: 1px solid var(--border-color); color: var(--text-main); border-radius: var(--radius-md); cursor: pointer;" @onclick="CloseModal">بستن</button>
+            </div>
+        </div>
+    </div>
+}
+
+<style>
+    .table-row-hover:hover { background-color: rgba(56, 189, 248, 0.05); }
+    @@keyframes fadeIn { from { opacity: 0; transform: scale(0.98); } to { opacity: 1; transform: scale(1); } }
+</style>
+
+@code {
+    private List<OfficialLetter> letters = new();
+    private bool isLoading = true;
+    
+    private bool isModalOpen = false;
+    private bool viewOnly = false;
+    private OfficialLetter editingLetter = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Task.Yield();
+        await DbContext.Database.EnsureCreatedAsync();
+        await LoadLetters();
+    }
+
+    private async Task LoadLetters()
+    {
+        isLoading = true;
+        try
+        {
+            letters = await DbContext.OfficialLetters.AsNoTracking().OrderByDescending(l => l.Id).ToListAsync();
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void OpenAddModal()
+    {
+        editingLetter = new OfficialLetter { LetterNumber = "LTR-" + DateTime.Now.ToString("yyyyMMdd-HHmm") };
+        viewOnly = false;
+        isModalOpen = true;
+    }
+
+    private void ViewLetter(OfficialLetter l)
+    {
+        editingLetter = l;
+        viewOnly = true;
+        isModalOpen = true;
+    }
+
+    private void CloseModal()
+    {
+        isModalOpen = false;
+    }
+
+    private async Task SaveLetter()
+    {
+        if (string.IsNullOrWhiteSpace(editingLetter.Subject)) return;
+
+        try
+        {
+            DbContext.OfficialLetters.Add(editingLetter);
+            await DbContext.SaveChangesAsync();
+            await LoadLetters();
+            CloseModal();
+        }
+        catch (Exception) { }
+    }
+
+    private async Task DeleteLetter(OfficialLetter l)
+    {
+        try
+        {
+            DbContext.OfficialLetters.Remove(l);
+            await DbContext.SaveChangesAsync();
+            await LoadLetters();
+        }
+        catch (Exception) { }
+    }
+}
