@@ -1,0 +1,317 @@
+@page "/invoices"
+@using SmartERP.Core
+@using SmartERP.Infrastructure
+@using Microsoft.EntityFrameworkCore
+@using System.Text.Json
+@inject AppDbContext DbContext
+
+<div class="module-header" style="animation: fadeIn 0.3s ease-out;">
+    <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 2rem;">
+        <div>
+            <h1 style="color: var(--primary-color); font-weight: 700; font-size: 1.8rem; margin-bottom: 0.5rem; text-shadow: var(--shadow-neon);">مدیریت فاکتورها</h1>
+            <p style="color: var(--text-muted); margin: 0; font-size: 0.95rem;">صدور سند فروش و رهگیری تراکنش‌های مالی</p>
+        </div>
+        <button class="btn-primary" @onclick="OpenAddModal" style="display: flex; align-items: center; gap: 0.5rem;">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="12" y1="18" x2="12" y2="12"></line><line x1="9" y1="15" x2="15" y2="15"></line></svg>
+            صدور فاکتور جدید
+        </button>
+    </div>
+
+    <!-- جدول فاکتورها -->
+    <div class="card" style="padding: 0; overflow-x: auto;">
+        <table class="industrial-table" style="width: 100%; border-collapse: collapse;">
+            <thead>
+                <tr style="background-color: rgba(30, 41, 59, 0.5); border-bottom: 2px solid var(--border-color);">
+                    <th style="padding: 1.2rem 1.5rem; text-align: right; color: var(--text-muted); font-weight: 500;">شماره فاکتور</th>
+                    <th style="padding: 1.2rem 1.5rem; text-align: right; color: var(--text-muted); font-weight: 500;">نام مشتری / خریدار</th>
+                    <th style="padding: 1.2rem 1.5rem; text-align: right; color: var(--text-muted); font-weight: 500;">تاریخ ثبت</th>
+                    <th style="padding: 1.2rem 1.5rem; text-align: right; color: var(--text-muted); font-weight: 500;">مبلغ نهایی (ریال)</th>
+                    <th style="padding: 1.2rem 1.5rem; text-align: center; color: var(--text-muted); font-weight: 500;">عملیات</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (isLoading)
+                {
+                    <tr>
+                        <td colspan="5" style="padding: 3rem; text-align: center;">
+                            <div class="loader-pulse-ring" style="position: relative; margin: 0 auto; width: 40px; height: 40px;"></div>
+                        </td>
+                    </tr>
+                }
+                else if (!invoices.Any())
+                {
+                    <tr>
+                        <td colspan="5" style="padding: 4rem 2rem; text-align: center; color: var(--text-muted);">
+                            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--border-color)" stroke-width="1.5" style="margin-bottom: 1rem;"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+                            <p>هنوز هیچ فاکتوری در سیستم ثبت نشده است.</p>
+                        </td>
+                    </tr>
+                }
+                else
+                {
+                    @foreach (var inv in invoices)
+                    {
+                        <tr style="border-bottom: 1px solid var(--border-color); transition: background-color 0.2s;" class="table-row-hover">
+                            <td style="padding: 1rem 1.5rem; font-family: var(--font-en); color: var(--primary-color); font-weight: bold;">@inv.InvoiceNumber</td>
+                            <td style="padding: 1rem 1.5rem; font-weight: 500;">@inv.CustomerName</td>
+                            <td style="padding: 1rem 1.5rem; font-family: var(--font-en); color: var(--text-muted);">@inv.InvoiceDate.ToString("yyyy/MM/dd HH:mm")</td>
+                            <td style="padding: 1rem 1.5rem; font-family: var(--font-en); color: var(--success); font-weight: bold;">@inv.FinalAmount.ToString("N0")</td>
+                            <td style="padding: 1rem 1.5rem; text-align: center;">
+                                <button style="background: none; border: none; color: var(--danger); cursor: pointer; padding: 0.5rem;" @onclick="() => DeleteInvoice(inv)" title="حذف فاکتور">
+                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                                </button>
+                            </td>
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Modal صدور فاکتور -->
+@if (isModalOpen)
+{
+    <div style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background-color: rgba(15, 23, 42, 0.85); backdrop-filter: blur(5px); z-index: 100; display: flex; align-items: center; justify-content: center; animation: fadeIn 0.2s;">
+        <div class="card" style="width: 100%; max-width: 800px; max-height: 90vh; overflow-y: auto; box-shadow: 0 20px 50px rgba(0,0,0,0.5); border-color: var(--primary-color);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; border-bottom: 1px solid var(--border-color); padding-bottom: 1rem;">
+                <h2 style="font-size: 1.3rem; color: var(--primary-color);">صدور فاکتور جدید</h2>
+                <button style="background: none; border: none; color: var(--text-muted); cursor: pointer;" @onclick="CloseModal">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                </button>
+            </div>
+
+            <!-- اطلاعات پایه -->
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1.5rem;">
+                <div class="form-group">
+                    <label style="display: block; margin-bottom: 0.5rem; color: var(--text-muted);">نام خریدار / شرکت</label>
+                    <input type="text" @bind="newInvoice.CustomerName" class="input-field" placeholder="مثال: شرکت فولاد خوزستان" />
+                </div>
+                <div class="form-group">
+                    <label style="display: block; margin-bottom: 0.5rem; color: var(--text-muted);">شماره فاکتور (خودکار)</label>
+                    <input type="text" readonly value="@newInvoice.InvoiceNumber" class="input-field" style="background-color: rgba(0,0,0,0.2); color: var(--accent-color); font-family: var(--font-en); text-align: left;" />
+                </div>
+            </div>
+
+            <!-- انتخاب کالا -->
+            <div style="background-color: rgba(30, 41, 59, 0.5); padding: 1rem; border-radius: var(--radius-md); border: 1px solid var(--border-color); margin-bottom: 1.5rem;">
+                <h3 style="font-size: 1rem; color: var(--text-main); margin-bottom: 1rem;">افزودن کالا به فاکتور</h3>
+                <div style="display: flex; gap: 1rem; align-items: flex-end;">
+                    <div style="flex-grow: 1;">
+                        <select @bind="selectedProductId" class="input-field" style="margin-bottom: 0;">
+                            <option value="0">-- انتخاب قطعه از انبار --</option>
+                            @foreach(var p in availableProducts)
+                            {
+                                <option value="@p.Id">@p.Code - @p.Name (موجودی: @p.StockQuantity)</option>
+                            }
+                        </select>
+                    </div>
+                    <div style="width: 120px;">
+                        <input type="number" @bind="quantityToAdd" class="input-field" style="margin-bottom: 0;" placeholder="تعداد" min="1" />
+                    </div>
+                    <button class="btn-primary" @onclick="AddItem" style="padding: 0.75rem 1rem;">+ افزودن</button>
+                </div>
+                @if(!string.IsNullOrEmpty(itemError))
+                {
+                    <div style="color: var(--danger); font-size: 0.85rem; margin-top: 0.5rem;">@itemError</div>
+                }
+            </div>
+
+            <!-- لیست اقلام فاکتور -->
+            @if (invoiceItems.Any())
+            {
+                <table style="width: 100%; border-collapse: collapse; margin-bottom: 1.5rem; font-size: 0.9rem;">
+                    <thead>
+                        <tr style="border-bottom: 1px solid var(--border-color); color: var(--text-muted);">
+                            <th style="text-align: right; padding: 0.5rem;">شرح کالا</th>
+                            <th style="text-align: center; padding: 0.5rem;">تعداد</th>
+                            <th style="text-align: left; padding: 0.5rem;">مبلغ کل (ریال)</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach(var item in invoiceItems)
+                        {
+                            <tr style="border-bottom: 1px dashed var(--border-color);">
+                                <td style="padding: 0.5rem;">@item.ProductName</td>
+                                <td style="text-align: center; padding: 0.5rem; font-family: var(--font-en);">@item.Quantity</td>
+                                <td style="text-align: left; padding: 0.5rem; font-family: var(--font-en); color: var(--primary-color);">@((item.UnitPrice * (decimal)item.Quantity).ToString("N0"))</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+
+                <div style="background-color: #090d16; padding: 1rem; border-radius: var(--radius-md); text-align: left;">
+                    <div style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 0.5rem;">جمع کل: <span style="font-family: var(--font-en); color: var(--text-main);">@newInvoice.TotalAmount.ToString("N0")</span></div>
+                    <div style="color: var(--success); font-size: 1.2rem; font-weight: bold;">مبلغ نهایی قابل پرداخت: <span style="font-family: var(--font-en);">@newInvoice.FinalAmount.ToString("N0") ریال</span></div>
+                </div>
+            }
+
+            <div style="display: flex; gap: 1rem; margin-top: 2rem;">
+                <button class="btn-primary" style="flex: 1;" @onclick="SaveInvoice" disabled="@(!invoiceItems.Any())">ثبت و ذخیره فاکتور</button>
+                <button style="flex: 1; background: transparent; border: 1px solid var(--border-color); color: var(--text-main); border-radius: var(--radius-md); cursor: pointer;" @onclick="CloseModal">انصراف</button>
+            </div>
+        </div>
+    </div>
+}
+
+<style>
+    .table-row-hover:hover { background-color: rgba(56, 189, 248, 0.05); }
+    @@keyframes fadeIn { from { opacity: 0; transform: scale(0.98); } to { opacity: 1; transform: scale(1); } }
+</style>
+
+@code {
+    private List<Invoice> invoices = new();
+    private bool isLoading = true;
+
+    // Modal State
+    private bool isModalOpen = false;
+    private Invoice newInvoice = new();
+    private List<Product> availableProducts = new();
+    
+    // Items State
+    private int selectedProductId = 0;
+    private double quantityToAdd = 1;
+    private string itemError = "";
+    
+    // کلاس کمکی برای نگهداری اقلام قبل از تبدیل به JSON
+    private class TempInvoiceItem
+    {
+        public int ProductId { get; set; }
+        public string ProductName { get; set; } = string.Empty;
+        public double Quantity { get; set; }
+        public decimal UnitPrice { get; set; }
+    }
+    private List<TempInvoiceItem> invoiceItems = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        // 🚀 ترفند طلایی سرعت: آزادسازی فوری رابط کاربری برای جابه‌جایی آنی بین تب‌ها
+        await Task.Yield();
+        
+        // 🛠 رفع خطای نبود جدول: اطمینان از ساخته شدن دیتابیس قبل از خواندن اطلاعات
+        await DbContext.Database.EnsureCreatedAsync();
+        
+        await LoadInvoices();
+    }
+
+    private async Task LoadInvoices()
+    {
+        isLoading = true;
+        try
+        {
+            invoices = await DbContext.Invoices.AsNoTracking().OrderByDescending(i => i.Id).ToListAsync();
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task OpenAddModal()
+    {
+        // آماده‌سازی فاکتور جدید
+        newInvoice = new Invoice
+        {
+            InvoiceNumber = "INV-" + DateTime.Now.ToString("yyyyMMdd-HHmm"),
+            InvoiceDate = DateTime.Now
+        };
+        invoiceItems.Clear();
+        itemError = "";
+        selectedProductId = 0;
+        quantityToAdd = 1;
+
+        // لود محصولات برای منوی کشویی به صورت فوق‌سریع
+        availableProducts = await DbContext.Products.AsNoTracking().Where(p => p.StockQuantity > 0).ToListAsync();
+        
+        isModalOpen = true;
+    }
+
+    private void AddItem()
+    {
+        itemError = "";
+        if (selectedProductId == 0)
+        {
+            itemError = "لطفاً یک کالا را انتخاب کنید.";
+            return;
+        }
+        
+        var product = availableProducts.FirstOrDefault(p => p.Id == selectedProductId);
+        if (product == null || quantityToAdd <= 0) return;
+
+        if (quantityToAdd > product.StockQuantity)
+        {
+            itemError = $"موجودی انبار کافی نیست! حداکثر موجودی: {product.StockQuantity}";
+            return;
+        }
+
+        invoiceItems.Add(new TempInvoiceItem
+        {
+            ProductId = product.Id,
+            ProductName = product.Name,
+            Quantity = quantityToAdd,
+            UnitPrice = product.Price
+        });
+
+        CalculateTotals();
+        
+        // ریست کردن فرم بالا
+        selectedProductId = 0;
+        quantityToAdd = 1;
+    }
+
+    private void CalculateTotals()
+    {
+        newInvoice.TotalAmount = invoiceItems.Sum(i => i.UnitPrice * (decimal)i.Quantity);
+        newInvoice.Tax = 0; // در صورت نیاز مالیات محاسبه شود
+        newInvoice.Discount = 0;
+        newInvoice.FinalAmount = newInvoice.TotalAmount + newInvoice.Tax - newInvoice.Discount;
+    }
+
+    private async Task SaveInvoice()
+    {
+        if (string.IsNullOrWhiteSpace(newInvoice.CustomerName) || !invoiceItems.Any()) return;
+
+        try
+        {
+            // تبدیل اقلام به رشته JSON برای ذخیره‌سازی سبک و سریع در دیتابیس
+            newInvoice.ItemsJson = JsonSerializer.Serialize(invoiceItems);
+            
+            DbContext.Invoices.Add(newInvoice);
+
+            // کسر موجودی از انبار به صورت اتوماتیک
+            foreach (var item in invoiceItems)
+            {
+                var dbProduct = await DbContext.Products.FindAsync(item.ProductId);
+                if (dbProduct != null)
+                {
+                    dbProduct.StockQuantity -= item.Quantity;
+                    DbContext.Products.Update(dbProduct);
+                }
+            }
+
+            await DbContext.SaveChangesAsync();
+            await LoadInvoices();
+            CloseModal();
+        }
+        catch (Exception)
+        {
+            itemError = "خطا در ذخیره‌سازی اطلاعات.";
+        }
+    }
+
+    private void CloseModal()
+    {
+        isModalOpen = false;
+    }
+
+    private async Task DeleteInvoice(Invoice inv)
+    {
+        try
+        {
+            DbContext.Invoices.Remove(inv);
+            await DbContext.SaveChangesAsync();
+            await LoadInvoices();
+        }
+        catch (Exception) { }
+    }
+}

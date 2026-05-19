@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <title>SmartERP - Industrial</title>
+    <base href="/" />
+    
+    <!-- فونت فارسی وزیرمتن -->
+    <link href="https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33.0.0/Vazirmatn-font-face.css" rel="stylesheet" type="text/css" />
+    <!-- فونت مهندسی و صنعتی برای اعداد و کدها -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    
+    <link rel="stylesheet" href="css/app.css" />
+    <link rel="stylesheet" href="SmartERP.styles.css" />
+
+    <style>
+        /* استایل اختصاصی لودینگ سایبری-صنعتی (فوق‌سبک و سریع) */
+        body, html { margin: 0; padding: 0; height: 100%; background-color: #0f172a; overflow: hidden; }
+        
+        .loader-wrapper {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background: radial-gradient(circle at center, #1e293b 0%, #0f172a 100%);
+        }
+
+        .cyber-loader {
+            position: relative;
+            width: 120px;
+            height: 120px;
+            margin-bottom: 2.5rem;
+        }
+
+        .cyber-ring-outer {
+            position: absolute;
+            inset: 0;
+            border-radius: 50%;
+            border: 3px solid transparent;
+            border-top-color: #38bdf8; /* آبی نئونی */
+            border-bottom-color: #38bdf8;
+            animation: spin 2s cubic-bezier(0.68, -0.55, 0.265, 1.55) infinite;
+            box-shadow: 0 0 20px rgba(56, 189, 248, 0.2);
+        }
+
+        .cyber-ring-inner {
+            position: absolute;
+            inset: 15px;
+            border-radius: 50%;
+            border: 2px dashed #fbbf24; /* زرد هشدار صنعتی */
+            animation: spin-reverse 4s linear infinite;
+        }
+
+        .cyber-core {
+            position: absolute;
+            inset: 40px;
+            background-color: #38bdf8;
+            border-radius: 50%;
+            box-shadow: 0 0 20px #38bdf8, 0 0 40px #38bdf8;
+            animation: pulse 1.5s ease-in-out infinite;
+        }
+
+        .brand-text {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 2.5rem;
+            font-weight: 700;
+            color: #38bdf8;
+            letter-spacing: 5px;
+            text-shadow: 0 0 15px rgba(56, 189, 248, 0.4);
+            margin-bottom: 0.5rem;
+        }
+
+        .status-text {
+            font-family: 'Vazirmatn', Tahoma, sans-serif;
+            color: #94a3b8;
+            font-size: 1.1rem;
+            letter-spacing: 1px;
+            animation: blink 2s infinite;
+        }
+
+        @keyframes spin { 100% { transform: rotate(360deg); } }
+        @keyframes spin-reverse { 100% { transform: rotate(-360deg); } }
+        @keyframes pulse { 0%, 100% { transform: scale(0.8); opacity: 0.8; } 50% { transform: scale(1.1); opacity: 1; } }
+        @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+        
+        #blazor-error-ui {
+            background: #ef4444;
+            bottom: 0;
+            box-shadow: 0 -1px 2px rgba(0, 0, 0, 0.2);
+            color: white;
+            display: none;
+            left: 0;
+            padding: 0.6rem 1.25rem;
+            position: fixed;
+            width: 100%;
+            z-index: 10000;
+            font-family: 'Vazirmatn', sans-serif;
+            text-align: right;
+        }
+        #blazor-error-ui .dismiss {
+            cursor: pointer;
+            position: absolute;
+            left: 1rem;
+            top: 0.6rem;
+            color: white;
+            font-weight: bold;
+        }
+    </style>
+</head>
+
+<body>
+    <!-- ظرف اصلی برنامه که Blazor کدهای خود را در آن بارگذاری می‌کند -->
+    <div id="app">
+        <!-- انیمیشن لودینگ صنعتی (هنگام لود کامل سیستم، این بخش خودکار حذف می‌شود) -->
+        <div class="loader-wrapper">
+            <div class="cyber-loader">
+                <div class="cyber-ring-outer"></div>
+                <div class="cyber-ring-inner"></div>
+                <div class="cyber-core"></div>
+            </div>
+            <div class="brand-text">SMART<span style="color: #f8fafc;">ERP</span></div>
+            <div class="status-text">در حال راه‌اندازی هسته سیستم...</div>
+        </div>
+    </div>
+
+    <div id="blazor-error-ui">
+        یک خطای داخلی رخ داد. لطفاً سیستم را مجدداً راه‌اندازی کنید.
+        <a href="" class="reload" style="color: white; font-weight: bold; margin-right: 10px;">بارگذاری مجدد</a>
+        <a class="dismiss">🗙</a>
+    </div>
+
+    <!-- اسکریپت اصلی فریم‌ورک (با قفل autostart برای جلوگیری از اجرای دوبار در MAUI) -->
+    <script src="_framework/blazor.webview.js" autostart="false"></script>
+</body>
+</html>
