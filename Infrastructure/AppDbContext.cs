@@ -8,21 +8,16 @@ namespace SmartERP.Infrastructure
         public DbSet<CompanySetting> CompanySettings { get; set; }
         public DbSet<Product> Products { get; set; }
         public DbSet<Invoice> Invoices { get; set; }
-        
-        // جداول جدید برای بخش CRM، مکاتبات و سفارشات
         public DbSet<Customer> Customers { get; set; }
         public DbSet<OfficialLetter> OfficialLetters { get; set; }
         public DbSet<Order> Orders { get; set; }
 
-        public AppDbContext(DbContextOptions<AppDbContext> options) : base(options)
-        {
-        }
+        public AppDbContext(DbContextOptions<AppDbContext> options) : base(options) { }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
-            
-            // تنظیم ساختار پایه‌ای دیتابیس
+
             modelBuilder.Entity<CompanySetting>().HasKey(c => c.Id);
             modelBuilder.Entity<Product>().HasKey(p => p.Id);
             modelBuilder.Entity<Invoice>().HasKey(i => i.Id);
@@ -30,15 +25,19 @@ namespace SmartERP.Infrastructure
             modelBuilder.Entity<OfficialLetter>().HasKey(o => o.Id);
             modelBuilder.Entity<Order>().HasKey(o => o.Id);
 
-            // اطلاعات پیش‌فرض
             modelBuilder.Entity<CompanySetting>().HasData(
                 new CompanySetting
                 {
                     Id = 1,
                     CompanyName = "گروه صنعتی مشعوف",
-                    ManagerName = "حسام مشعوف", 
-                    Address = "جاده قادیکلا بزرگ، 500 متر بعد از پمپ بنزین، جنب تالار مسعود | تلفن: 09110000000 | شعار: تولید کننده انواع چهارچوب فلزی و درب ضد سرقت",
-                    LogoPath = "/images/default-logo.png"
+                    ManagerName = "حسام مشعوف",
+                    Address = "جاده قادیکلا بزرگ، 500 متر بعد از پمپ بنزین، جنب تالار مسعود",
+                    PhoneNumber = "09110000000",
+                    Slogan = "تولید کننده انواع چهارچوب فلزی و درب ضد سرقت",
+                    LogoPath = "/images/default-logo.png",
+                    DefaultTaxRate = 0.09m,
+                    WebApiUrl = "",
+                    WebApiKey = ""
                 }
             );
 

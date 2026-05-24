@@ -1,0 +1,240 @@
+@page "/orders"
+@using SmartERP.Core
+@using SmartERP.Infrastructure
+@using Microsoft.EntityFrameworkCore
+@implements IDisposable
+@inject IDbContextFactory<AppDbContext> DbFactory
+
+<div class="module-header">
+    <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 2rem;">
+        <div>
+            <h1 style="color: var(--primary-color); font-weight: 800; font-size: 1.8rem; margin-bottom: 0.5rem;">سفارشات تولید</h1>
+            <p style="color: var(--text-muted); margin: 0; font-size: 0.95rem;">پیگیری وضعیت تولید از دریافت سفارش تا آماده‌سازی برای ارسال</p>
+        </div>
+        <button class="btn-primary" @onclick="OpenAddModal">+ ثبت سفارش تولید</button>
+    </div>
+
+    @if (!string.IsNullOrEmpty(pageError))
+    {
+        <div class="alert-error">@pageError</div>
+    }
+
+    <div class="card" style="margin-bottom: 1.5rem; padding: 1rem 1.5rem; display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap;">
+        @foreach (var s in new[] { "همه", "در انتظار بررسی", "در حال ساخت", "آماده تحویل" })
+        {
+            <button @onclick="() => SetFilter(s)"
+                    style="padding: 0.4rem 1rem; border-radius: var(--radius-md); cursor: pointer; font-family: var(--font-fa); font-weight: bold; font-size: 0.85rem;
+                           background: @(filterStatus == s ? "var(--primary-color)" : "var(--bg-color)");
+                           color: @(filterStatus == s ? "#000" : "var(--text-muted)");
+                           border: 1px solid @(filterStatus == s ? "var(--primary-hover)" : "var(--border-color)");">
+                @s
+            </button>
+        }
+        <div style="margin-right: auto; color: var(--text-muted); font-size: 0.9rem;">
+            <span style="font-family: var(--font-en); color: var(--primary-color);">@filteredOrders.Count</span> سفارش
+        </div>
+    </div>
+
+    <div class="card" style="padding: 0; overflow-x: auto;">
+        <table class="industrial-table" style="width: 100%; border-collapse: collapse;">
+            <thead>
+                <tr>
+                    <th style="padding: 1rem 1.5rem; text-align: right;">شماره سفارش</th>
+                    <th style="padding: 1rem 1.5rem; text-align: right;">مشتری</th>
+                    <th style="padding: 1rem 1.5rem; text-align: right;">وضعیت تولید</th>
+                    <th style="padding: 1rem 1.5rem; text-align: right;">تاریخ سفارش</th>
+                    <th style="padding: 1rem 1.5rem; text-align: right;">تحویل مورد انتظار</th>
+                    <th style="padding: 1rem 1.5rem; text-align: right;">مبلغ (ریال)</th>
+                    <th style="padding: 1rem 1.5rem; text-align: center;">عملیات</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (isLoading)
+                {
+                    <tr><td colspan="7" style="padding: 3rem; text-align: center;"><div class="loader-pulse-ring" style="margin: 0 auto;"></div></td></tr>
+                }
+                else if (!filteredOrders.Any())
+                {
+                    <tr><td colspan="7" style="padding: 4rem; text-align: center; color: var(--text-muted);">سفارش فعالی یافت نشد.</td></tr>
+                }
+                else
+                {
+                    @foreach (var o in filteredOrders)
+                    {
+                        var isOverdue = o.ExpectedDelivery < DateTime.Now && o.Status != "آماده تحویل";
+                        <tr class="table-row-hover">
+                            <td style="padding: 1rem 1.5rem; font-family: var(--font-en); color: var(--primary-color); font-weight: bold;">@o.OrderNumber</td>
+                            <td style="padding: 1rem 1.5rem; font-weight: bold;">@o.CustomerName</td>
+                            <td style="padding: 1rem 1.5rem;">
+                                @if (o.Status == "در انتظار بررسی")
+                                {
+                                    <span style="color: var(--text-muted); background: rgba(161,161,170,0.1); padding: 0.2rem 0.5rem; border-radius: var(--radius-md); font-size: 0.85rem; font-weight: bold;">@o.Status</span>
+                                }
+                                else if (o.Status == "در حال ساخت")
+                                {
+                                    <span style="color: var(--primary-color); background: rgba(245,158,11,0.1); padding: 0.2rem 0.5rem; border-radius: var(--radius-md); font-size: 0.85rem; font-weight: bold;">@o.Status</span>
+                                }
+                                else
+                                {
+                                    <span style="color: var(--success); background: rgba(16,185,129,0.1); padding: 0.2rem 0.5rem; border-radius: var(--radius-md); font-size: 0.85rem; font-weight: bold;">@o.Status</span>
+                                }
+                            </td>
+                            <td style="padding: 1rem 1.5rem; font-family: var(--font-en); color: var(--text-muted); font-size: 0.9rem;">@o.OrderDate.ToString("yyyy/MM/dd")</td>
+                            <td style="padding: 1rem 1.5rem; font-family: var(--font-en); font-size: 0.9rem; color: @(isOverdue ? "var(--danger)" : "var(--text-muted)");">
+                                @o.ExpectedDelivery.ToString("yyyy/MM/dd")
+                                @if (isOverdue) { <span style="font-family: var(--font-fa); font-size: 0.75rem; margin-right: 0.3rem;">(تاخیر!)</span> }
+                            </td>
+                            <td style="padding: 1rem 1.5rem; font-family: var(--font-en);">@(o.TotalAmount > 0 ? o.TotalAmount.ToString("N0") : "---")</td>
+                            <td style="padding: 1rem 1.5rem; text-align: center;">
+                                <button style="background: var(--bg-color); border: 1px solid var(--border-color); color: var(--text-main); cursor: pointer; padding: 0.3rem 0.6rem; border-radius: var(--radius-md); font-weight: bold; margin-left: 0.5rem;" @onclick="() => OpenEditModal(o)">ویرایش</button>
+                                <button style="background: none; border: none; color: var(--danger); cursor: pointer; padding: 0.3rem;" @onclick="() => DeleteOrder(o.Id)">حذف</button>
+                            </td>
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+@if (isModalOpen)
+{
+    <div style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background-color: rgba(9,9,11,0.92); z-index: 200; display: flex; align-items: center; justify-content: center;" @onclick="CloseModal">
+        <div class="card" style="width: 100%; max-width: 620px; max-height: 90vh; overflow-y: auto; border-top: 3px solid var(--primary-color);" @onclick:stopPropagation="true">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; border-bottom: 1px solid var(--border-color); padding-bottom: 1rem;">
+                <h2 style="font-size: 1.2rem; color: var(--text-main); font-weight: 800;">@(editingOrder.Id == 0 ? "ثبت سفارش تولید جدید" : "ویرایش سفارش")</h2>
+                <button style="background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 1.5rem; padding: 0.2rem 0.5rem;" @onclick="CloseModal">✕</button>
+            </div>
+
+            @if (!string.IsNullOrEmpty(modalError))
+            {
+                <div class="alert-error">@modalError</div>
+            }
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
+                <div>
+                    <label style="display: block; margin-bottom: 0.4rem; color: var(--text-muted); font-size: 0.85rem;">شماره سفارش</label>
+                    <input type="text" @bind="editingOrder.OrderNumber" class="input-field" style="margin-bottom: 0; font-family: var(--font-en);" />
+                </div>
+                <div>
+                    <label style="display: block; margin-bottom: 0.4rem; color: var(--text-muted); font-size: 0.85rem;">نام مشتری / پروژه *</label>
+                    <input type="text" @bind="editingOrder.CustomerName" class="input-field" style="margin-bottom: 0;" />
+                </div>
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
+                <div>
+                    <label style="display: block; margin-bottom: 0.4rem; color: var(--text-muted); font-size: 0.85rem;">تاریخ تحویل مورد انتظار</label>
+                    <input type="date" @bind="editingOrder.ExpectedDelivery" class="input-field" style="margin-bottom: 0; font-family: var(--font-en);" />
+                </div>
+                <div>
+                    <label style="display: block; margin-bottom: 0.4rem; color: var(--text-muted); font-size: 0.85rem;">مبلغ تقریبی (ریال)</label>
+                    <input type="number" @bind="editingOrder.TotalAmount" class="input-field" style="margin-bottom: 0; font-family: var(--font-en);" min="0" />
+                </div>
+            </div>
+
+            <div style="margin-bottom: 1rem;">
+                <label style="display: block; margin-bottom: 0.4rem; color: var(--text-muted); font-size: 0.85rem;">وضعیت تولید</label>
+                <select @bind="editingOrder.Status" class="input-field" style="margin-bottom: 0;">
+                    <option value="در انتظار بررسی">در انتظار بررسی</option>
+                    <option value="در حال ساخت">در حال ساخت</option>
+                    <option value="آماده تحویل">آماده تحویل</option>
+                </select>
+            </div>
+
+            <div style="margin-bottom: 1.5rem;">
+                <label style="display: block; margin-bottom: 0.4rem; color: var(--text-muted); font-size: 0.85rem;">شرح اقلام / مشخصات فنی / توضیحات</label>
+                <textarea @bind="editingOrder.ItemsJson" class="input-field" style="min-height: 120px; resize: vertical; margin-bottom: 0;" placeholder="مثال: 10 عدد درب ضد سرقت مدل ترک، ابعاد 210×80، رنگ مشکی مات..."></textarea>
+            </div>
+
+            <div style="display: flex; gap: 1rem;">
+                <button class="btn-primary" style="flex: 1;" @onclick="SaveOrder" disabled="@isSaving">
+                    @if (isSaving) { <span>در حال ذخیره...</span> } else { <span>ثبت سفارش</span> }
+                </button>
+                <button style="flex: 1; background: transparent; border: 1px solid var(--border-color); color: var(--text-main); border-radius: var(--radius-md); cursor: pointer; font-weight: bold; padding: 0.6rem;" @onclick="CloseModal">انصراف</button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private AppDbContext _db = null!;
+    private List<Order> orders = new();
+    private List<Order> filteredOrders = new();
+    private bool isLoading = true;
+    private bool isSaving = false;
+    private string filterStatus = "همه";
+    private string pageError = "";
+    private string modalError = "";
+    private bool isModalOpen = false;
+    private Order editingOrder = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        _db = await DbFactory.CreateDbContextAsync();
+        await LoadOrders();
+    }
+
+    private async Task LoadOrders()
+    {
+        isLoading = true;
+        pageError = "";
+        try
+        {
+            orders = await _db.Orders.AsNoTracking().OrderByDescending(o => o.Id).ToListAsync();
+            ApplyFilter();
+        }
+        catch (Exception ex) { pageError = ex.Message; }
+        finally { isLoading = false; }
+    }
+
+    private void SetFilter(string status) { filterStatus = status; ApplyFilter(); }
+    private void ApplyFilter() { filteredOrders = filterStatus == "همه" ? orders.ToList() : orders.Where(o => o.Status == filterStatus).ToList(); }
+
+    private void OpenAddModal()
+    {
+        editingOrder = new Order { OrderNumber = "ORD-" + DateTime.Now.ToString("MMddHHmm"), OrderDate = DateTime.Now, ExpectedDelivery = DateTime.Now.AddDays(7), Status = "در انتظار بررسی", ItemsJson = "" };
+        modalError = "";
+        isModalOpen = true;
+    }
+
+    private void OpenEditModal(Order o)
+    {
+        editingOrder = new Order { Id = o.Id, OrderNumber = o.OrderNumber, CustomerName = o.CustomerName, OrderDate = o.OrderDate, ExpectedDelivery = o.ExpectedDelivery, Status = o.Status, ItemsJson = o.ItemsJson, TotalAmount = o.TotalAmount };
+        modalError = "";
+        isModalOpen = true;
+    }
+
+    private void CloseModal() { isModalOpen = false; modalError = ""; }
+
+    private async Task SaveOrder()
+    {
+        if (string.IsNullOrWhiteSpace(editingOrder.CustomerName)) { modalError = "نام مشتری / پروژه الزامی است."; return; }
+        isSaving = true;
+        try
+        {
+            await using var saveDb = await DbFactory.CreateDbContextAsync();
+            if (editingOrder.Id == 0) saveDb.Orders.Add(editingOrder);
+            else saveDb.Orders.Update(editingOrder);
+            await saveDb.SaveChangesAsync();
+            await LoadOrders();
+            CloseModal();
+        }
+        catch (Exception ex) { modalError = ex.Message; }
+        finally { isSaving = false; }
+    }
+
+    private async Task DeleteOrder(int id)
+    {
+        try
+        {
+            await using var deleteDb = await DbFactory.CreateDbContextAsync();
+            var o = await deleteDb.Orders.FindAsync(id);
+            if (o != null) { deleteDb.Orders.Remove(o); await deleteDb.SaveChangesAsync(); }
+            await LoadOrders();
+        }
+        catch (Exception ex) { pageError = ex.Message; }
+    }
+
+    public void Dispose() => _db?.Dispose();
+}

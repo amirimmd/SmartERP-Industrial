@@ -1,0 +1,334 @@
+@page "/crm"
+@using SmartERP.Core
+@using SmartERP.Infrastructure
+@using Microsoft.EntityFrameworkCore
+@implements IDisposable
+@inject IDbContextFactory<AppDbContext> DbFactory
+
+<div class="module-header">
+    <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 2rem;">
+        <div>
+            <h1 style="color: var(--primary-color); font-weight: 800; font-size: 1.8rem; margin-bottom: 0.5rem;">مدیریت مشتریان (CRM)</h1>
+            <p style="color: var(--text-muted); margin: 0; font-size: 0.95rem;">پایگاه داده مشتریان، تاریخچه خرید و اطلاعات تماس</p>
+        </div>
+        <button class="btn-primary" @onclick="OpenAddModal">+ ثبت مشتری جدید</button>
+    </div>
+
+    @if (!string.IsNullOrEmpty(pageError))
+    {
+        <div class="alert-error">@pageError</div>
+    }
+
+    <div class="card" style="margin-bottom: 1.5rem; padding: 1rem 1.5rem; display: flex; gap: 1rem; align-items: center;">
+        <div style="flex-grow: 1;">
+            <input type="text" @bind="searchQuery" @bind:event="oninput" placeholder="جستجو در مشتریان (نام، شماره موبایل، شرکت)..." class="input-field" style="margin-bottom: 0;" />
+        </div>
+        <div style="color: var(--text-muted); font-size: 0.9rem; white-space: nowrap;">
+            <span style="font-family: var(--font-en); color: var(--primary-color);">@filteredCustomers.Count</span> مشتری
+        </div>
+    </div>
+
+    <div class="card" style="padding: 0; overflow-x: auto;">
+        <table class="industrial-table" style="width: 100%; border-collapse: collapse;">
+            <thead>
+                <tr>
+                    <th style="padding: 1rem 1.5rem; text-align: right;">نام مشتری</th>
+                    <th style="padding: 1rem 1.5rem; text-align: right;">شرکت</th>
+                    <th style="padding: 1rem 1.5rem; text-align: right;">تلفن</th>
+                    <th style="padding: 1rem 1.5rem; text-align: right;">نوع</th>
+                    <th style="padding: 1rem 1.5rem; text-align: right;">کل خرید (ریال)</th>
+                    <th style="padding: 1rem 1.5rem; text-align: right;">آخرین خرید</th>
+                    <th style="padding: 1rem 1.5rem; text-align: center;">عملیات</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (isLoading)
+                {
+                    <tr><td colspan="7" style="padding: 3rem; text-align: center;"><div class="loader-pulse-ring" style="margin: 0 auto;"></div></td></tr>
+                }
+                else if (!filteredCustomers.Any())
+                {
+                    <tr><td colspan="7" style="padding: 4rem; text-align: center; color: var(--text-muted);">مشتری‌ای یافت نشد.</td></tr>
+                }
+                else
+                {
+                    @foreach (var c in filteredCustomers)
+                    {
+                        <tr class="table-row-hover">
+                            <td style="padding: 1rem 1.5rem; font-weight: bold;">
+                                @c.FullName
+                                @if (!c.IsActive) { <span style="font-size: 0.75rem; color: var(--danger); margin-right: 0.5rem;">(غیرفعال)</span> }
+                            </td>
+                            <td style="padding: 1rem 1.5rem; color: var(--text-muted);">@(string.IsNullOrEmpty(c.CompanyName) ? "---" : c.CompanyName)</td>
+                            <td style="padding: 1rem 1.5rem; font-family: var(--font-en);">@c.PhoneNumber</td>
+                            <td style="padding: 1rem 1.5rem;">
+                                <span style="background: rgba(59,130,246,0.1); border: 1px solid rgba(59,130,246,0.3); color: var(--accent-color); padding: 0.2rem 0.5rem; border-radius: var(--radius-md); font-size: 0.8rem;">@c.CustomerType</span>
+                            </td>
+                            <td style="padding: 1rem 1.5rem; font-family: var(--font-en); color: var(--success); font-weight: bold;">@c.TotalPurchaseAmount.ToString("N0")</td>
+                            <td style="padding: 1rem 1.5rem; font-family: var(--font-en); color: var(--text-muted); font-size: 0.85rem;">@(c.LastPurchaseDate.HasValue ? c.LastPurchaseDate.Value.ToString("yyyy/MM/dd") : "---")</td>
+                            <td style="padding: 1rem 1.5rem; text-align: center;">
+                                <button style="background: var(--bg-color); border: 1px solid var(--border-color); color: var(--text-main); cursor: pointer; padding: 0.3rem 0.6rem; border-radius: var(--radius-md); font-weight: bold; margin-left: 0.5rem;" @onclick="() => OpenEditModal(c)">ویرایش</button>
+                                <button style="background: none; border: none; color: var(--accent-color); cursor: pointer; padding: 0.3rem 0.5rem; font-weight: bold;" @onclick="() => ViewHistory(c)">تاریخچه</button>
+                                <button style="background: none; border: none; color: var(--danger); cursor: pointer; padding: 0.3rem;" @onclick="() => DeleteCustomer(c.Id)">حذف</button>
+                            </td>
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+@if (isModalOpen)
+{
+    <div style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background-color: rgba(9,9,11,0.92); z-index: 200; display: flex; align-items: center; justify-content: center;" @onclick="CloseModal">
+        <div class="card" style="width: 100%; max-width: 700px; max-height: 90vh; overflow-y: auto; border-top: 3px solid var(--primary-color);" @onclick:stopPropagation="true">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; border-bottom: 1px solid var(--border-color); padding-bottom: 1rem;">
+                <h2 style="font-size: 1.2rem; color: var(--text-main); font-weight: 800;">@(editingCustomer.Id == 0 ? "ثبت مشتری جدید" : "ویرایش اطلاعات مشتری")</h2>
+                <button style="background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 1.5rem; padding: 0.2rem 0.5rem;" @onclick="CloseModal">✕</button>
+            </div>
+
+            @if (!string.IsNullOrEmpty(modalError))
+            {
+                <div class="alert-error">@modalError</div>
+            }
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
+                <div>
+                    <label style="display: block; margin-bottom: 0.4rem; color: var(--text-muted); font-size: 0.85rem;">نام و نام خانوادگی *</label>
+                    <input type="text" @bind="editingCustomer.FullName" class="input-field" style="margin-bottom: 0;" placeholder="الزامی" />
+                </div>
+                <div>
+                    <label style="display: block; margin-bottom: 0.4rem; color: var(--text-muted); font-size: 0.85rem;">نام شرکت</label>
+                    <input type="text" @bind="editingCustomer.CompanyName" class="input-field" style="margin-bottom: 0;" />
+                </div>
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
+                <div>
+                    <label style="display: block; margin-bottom: 0.4rem; color: var(--text-muted); font-size: 0.85rem;">شماره موبایل</label>
+                    <input type="text" @bind="editingCustomer.PhoneNumber" class="input-field" style="margin-bottom: 0; font-family: var(--font-en); direction: ltr;" placeholder="09xxxxxxxxx" />
+                </div>
+                <div>
+                    <label style="display: block; margin-bottom: 0.4rem; color: var(--text-muted); font-size: 0.85rem;">کد ملی</label>
+                    <input type="text" @bind="editingCustomer.NationalId" class="input-field" style="margin-bottom: 0; font-family: var(--font-en); direction: ltr;" />
+                </div>
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
+                <div>
+                    <label style="display: block; margin-bottom: 0.4rem; color: var(--text-muted); font-size: 0.85rem;">پست الکترونیک</label>
+                    <input type="email" @bind="editingCustomer.Email" class="input-field" style="margin-bottom: 0; font-family: var(--font-en); direction: ltr;" />
+                </div>
+                <div>
+                    <label style="display: block; margin-bottom: 0.4rem; color: var(--text-muted); font-size: 0.85rem;">نوع مشتری</label>
+                    <select @bind="editingCustomer.CustomerType" class="input-field" style="margin-bottom: 0;">
+                        <option value="خریدار عادی">خریدار عادی</option>
+                        <option value="همکار">همکار / نمایندگی</option>
+                        <option value="پیمانکار">پیمانکار ساختمانی</option>
+                        <option value="دولتی">سازمان دولتی</option>
+                        <option value="عمده فروش">عمده‌فروش</option>
+                    </select>
+                </div>
+            </div>
+
+            <div style="margin-bottom: 1rem;">
+                <label style="display: block; margin-bottom: 0.4rem; color: var(--text-muted); font-size: 0.85rem;">آدرس</label>
+                <textarea @bind="editingCustomer.Address" class="input-field" style="min-height: 70px; resize: vertical; margin-bottom: 0;"></textarea>
+            </div>
+
+            <div style="margin-bottom: 1rem;">
+                <label style="display: block; margin-bottom: 0.4rem; color: var(--text-muted); font-size: 0.85rem;">یادداشت</label>
+                <textarea @bind="editingCustomer.Notes" class="input-field" style="min-height: 70px; resize: vertical; margin-bottom: 0;"></textarea>
+            </div>
+
+            <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1.5rem; padding: 0.75rem; background: var(--bg-color); border-radius: var(--radius-md); border: 1px solid var(--border-color);">
+                <input type="checkbox" @bind="editingCustomer.IsActive" id="isActiveChk" style="width: 18px; height: 18px; cursor: pointer; accent-color: var(--primary-color);" />
+                <label for="isActiveChk" style="cursor: pointer; color: var(--text-main); font-size: 0.9rem;">مشتری فعال (در لیست‌های انتخاب فاکتور نمایش داده می‌شود)</label>
+            </div>
+
+            <div style="display: flex; gap: 1rem;">
+                <button class="btn-primary" style="flex: 1;" @onclick="SaveCustomer" disabled="@isSaving">
+                    @if (isSaving) { <span>در حال ذخیره...</span> } else { <span>ذخیره مشتری</span> }
+                </button>
+                <button style="flex: 1; background: transparent; border: 1px solid var(--border-color); color: var(--text-main); border-radius: var(--radius-md); cursor: pointer; font-weight: bold; padding: 0.6rem;" @onclick="CloseModal">انصراف</button>
+            </div>
+        </div>
+    </div>
+}
+
+@if (isHistoryOpen)
+{
+    <div style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background-color: rgba(9,9,11,0.92); z-index: 200; display: flex; align-items: center; justify-content: center;" @onclick="() => isHistoryOpen = false">
+        <div class="card" style="width: 100%; max-width: 800px; max-height: 85vh; overflow-y: auto; border-top: 3px solid var(--accent-color);" @onclick:stopPropagation="true">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; border-bottom: 1px solid var(--border-color); padding-bottom: 1rem;">
+                <div>
+                    <h2 style="font-size: 1.2rem; color: var(--text-main); font-weight: 800;">تاریخچه خرید</h2>
+                    <p style="color: var(--primary-color); font-size: 0.9rem; margin: 0.25rem 0 0; font-weight: bold;">@historyCustomer?.FullName — @historyCustomer?.PhoneNumber</p>
+                </div>
+                <button style="background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 1.5rem; padding: 0.2rem 0.5rem;" @onclick="() => isHistoryOpen = false">✕</button>
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem; margin-bottom: 1.5rem;">
+                <div style="background: var(--bg-color); padding: 1rem; border-radius: var(--radius-md); border: 1px solid var(--border-color); text-align: center;">
+                    <div style="color: var(--text-muted); font-size: 0.8rem; margin-bottom: 0.25rem;">تعداد فاکتور</div>
+                    <div class="industrial-num" style="font-size: 1.5rem; color: var(--primary-color);">@customerInvoices.Count</div>
+                </div>
+                <div style="background: var(--bg-color); padding: 1rem; border-radius: var(--radius-md); border: 1px solid var(--border-color); text-align: center;">
+                    <div style="color: var(--text-muted); font-size: 0.8rem; margin-bottom: 0.25rem;">کل خرید (ریال)</div>
+                    <div class="industrial-num" style="font-size: 1.2rem; color: var(--success);">@customerInvoices.Sum(i => i.FinalAmount).ToString("N0")</div>
+                </div>
+                <div style="background: var(--bg-color); padding: 1rem; border-radius: var(--radius-md); border: 1px solid var(--border-color); text-align: center;">
+                    <div style="color: var(--text-muted); font-size: 0.8rem; margin-bottom: 0.25rem;">آخرین تراکنش</div>
+                    <div class="industrial-num" style="font-size: 0.95rem; color: var(--text-main);">@(customerInvoices.Any() ? customerInvoices.Max(i => i.InvoiceDate).ToString("yyyy/MM/dd") : "---")</div>
+                </div>
+            </div>
+
+            @if (!customerInvoices.Any())
+            {
+                <div style="text-align: center; padding: 2rem; color: var(--text-muted);">تاریخچه‌ای برای این مشتری ثبت نشده است.</div>
+            }
+            else
+            {
+                <table class="industrial-table" style="width: 100%; border-collapse: collapse;">
+                    <thead>
+                        <tr>
+                            <th style="padding: 0.75rem 1rem; text-align: right;">شماره فاکتور</th>
+                            <th style="padding: 0.75rem 1rem; text-align: right;">تاریخ</th>
+                            <th style="padding: 0.75rem 1rem; text-align: right;">نوع</th>
+                            <th style="padding: 0.75rem 1rem; text-align: right;">وضعیت</th>
+                            <th style="padding: 0.75rem 1rem; text-align: right;">مبلغ (ریال)</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var inv in customerInvoices.OrderByDescending(i => i.Id))
+                        {
+                            <tr class="table-row-hover">
+                                <td style="padding: 0.75rem 1rem; font-family: var(--font-en); color: var(--primary-color); font-weight: bold;">@inv.InvoiceNumber</td>
+                                <td style="padding: 0.75rem 1rem; font-family: var(--font-en); color: var(--text-muted);">@inv.InvoiceDate.ToString("yyyy/MM/dd")</td>
+                                <td style="padding: 0.75rem 1rem; font-size: 0.85rem; color: var(--text-muted);">@inv.InvoiceType</td>
+                                <td style="padding: 0.75rem 1rem; font-size: 0.85rem; font-weight: bold;">@inv.Status</td>
+                                <td style="padding: 0.75rem 1rem; font-family: var(--font-en); color: var(--success); font-weight: bold;">@inv.FinalAmount.ToString("N0")</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+        </div>
+    </div>
+}
+
+@code {
+    private AppDbContext _db = null!;
+    private List<Customer> customers = new();
+    private List<Customer> filteredCustomers = new();
+    private bool isLoading = true;
+    private bool isSaving = false;
+    private string pageError = "";
+    private string modalError = "";
+
+    private string _searchQuery = "";
+    private string searchQuery
+    {
+        get => _searchQuery;
+        set { _searchQuery = value; FilterCustomers(); }
+    }
+
+    private bool isModalOpen = false;
+    private Customer editingCustomer = new();
+
+    private bool isHistoryOpen = false;
+    private Customer? historyCustomer;
+    private List<Invoice> customerInvoices = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        _db = await DbFactory.CreateDbContextAsync();
+        await LoadCustomers();
+    }
+
+    private async Task LoadCustomers()
+    {
+        isLoading = true;
+        pageError = "";
+        try
+        {
+            customers = await _db.Customers.AsNoTracking()
+                .OrderByDescending(c => c.LastPurchaseDate ?? c.RegisterDate)
+                .ToListAsync();
+            FilterCustomers();
+        }
+        catch (Exception ex) { pageError = ex.Message; }
+        finally { isLoading = false; }
+    }
+
+    private void FilterCustomers()
+    {
+        if (string.IsNullOrWhiteSpace(searchQuery)) { filteredCustomers = customers.ToList(); return; }
+        var q = searchQuery.ToLower();
+        filteredCustomers = customers.Where(c =>
+            (c.FullName != null && c.FullName.Contains(q)) ||
+            (c.CompanyName != null && c.CompanyName.Contains(q)) ||
+            (c.PhoneNumber != null && c.PhoneNumber.Contains(q))).ToList();
+    }
+
+    private void OpenAddModal() { editingCustomer = new Customer { IsActive = true }; modalError = ""; isModalOpen = true; }
+
+    private void OpenEditModal(Customer c)
+    {
+        editingCustomer = new Customer
+        {
+            Id = c.Id, FullName = c.FullName, CompanyName = c.CompanyName,
+            PhoneNumber = c.PhoneNumber, Address = c.Address, Email = c.Email,
+            NationalId = c.NationalId, Notes = c.Notes, IsActive = c.IsActive,
+            CustomerType = c.CustomerType, RegisterDate = c.RegisterDate,
+            LastPurchaseDate = c.LastPurchaseDate, TotalPurchaseAmount = c.TotalPurchaseAmount,
+            TotalInvoiceCount = c.TotalInvoiceCount
+        };
+        modalError = "";
+        isModalOpen = true;
+    }
+
+    private void CloseModal() { isModalOpen = false; modalError = ""; }
+
+    private async Task SaveCustomer()
+    {
+        if (string.IsNullOrWhiteSpace(editingCustomer.FullName)) { modalError = "نام مشتری الزامی است."; return; }
+        isSaving = true;
+        try
+        {
+            await using var saveDb = await DbFactory.CreateDbContextAsync();
+            if (editingCustomer.Id == 0) saveDb.Customers.Add(editingCustomer);
+            else saveDb.Customers.Update(editingCustomer);
+            await saveDb.SaveChangesAsync();
+            await LoadCustomers();
+            CloseModal();
+        }
+        catch (Exception ex) { modalError = ex.Message; }
+        finally { isSaving = false; }
+    }
+
+    private async Task DeleteCustomer(int id)
+    {
+        try
+        {
+            await using var deleteDb = await DbFactory.CreateDbContextAsync();
+            var c = await deleteDb.Customers.FindAsync(id);
+            if (c != null) { deleteDb.Customers.Remove(c); await deleteDb.SaveChangesAsync(); }
+            await LoadCustomers();
+        }
+        catch (Exception ex) { pageError = ex.Message; }
+    }
+
+    private async Task ViewHistory(Customer c)
+    {
+        historyCustomer = c;
+        customerInvoices = await _db.Invoices.AsNoTracking()
+            .Where(i => i.CustomerPhone == c.PhoneNumber || i.CustomerName == c.FullName)
+            .OrderByDescending(i => i.Id)
+            .ToListAsync();
+        isHistoryOpen = true;
+    }
+
+    public void Dispose() => _db?.Dispose();
+}

@@ -1,9 +1,14 @@
 @page "/"
+@using SmartERP.Core
+@using SmartERP.Infrastructure
+@using Microsoft.EntityFrameworkCore
+@implements IDisposable
+@inject IDbContextFactory<AppDbContext> DbFactory
 
-<div style="animation: fadeIn 0.5s ease-out;">
-    <div class="dashboard-header" style="margin-bottom: 2.5rem; display: flex; justify-content: space-between; align-items: flex-end;">
+<div>
+    <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 2.5rem;">
         <div>
-            <h1 style="color: var(--text-main); font-weight: 700; font-size: 1.8rem; margin-bottom: 0.5rem; text-shadow: 0 0 10px rgba(255,255,255,0.1);">داشبورد مدیریتی</h1>
+            <h1 style="color: var(--text-main); font-weight: 700; font-size: 1.8rem; margin-bottom: 0.5rem;">داشبورد مدیریتی</h1>
             <p style="color: var(--text-muted); margin: 0; font-size: 0.95rem;">نمای کلی وضعیت تولید، انبار و فروش</p>
         </div>
         <div style="color: var(--text-muted); font-family: var(--font-en); font-size: 0.9rem; background: var(--surface-color); padding: 0.5rem 1rem; border-radius: var(--radius-md); border: 1px solid var(--border-color);">
@@ -11,74 +16,189 @@
         </div>
     </div>
 
-    <!-- آمار اصلی -->
-    <div class="stats-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1.5rem; margin-bottom: 2.5rem;">
-        
-        <div class="card" style="position: relative; overflow: hidden;">
-            <div style="position: absolute; left: -20px; top: -20px; opacity: 0.05; color: var(--primary-color);">
-                <svg width="120" height="120" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm.31-8.86c-1.77-.45-2.34-.94-2.34-1.67 0-.84.79-1.43 2.1-1.43 1.38 0 1.9.66 1.94 1.64h1.71c-.05-1.34-.87-2.57-2.49-2.97V5H10.9v1.69c-1.51.32-2.72 1.3-2.72 2.81 0 1.79 1.49 2.69 3.66 3.21 1.95.46 2.34 1.15 2.34 1.87 0 .53-.39 1.64-2.25 1.64-1.74 0-2.1-.96-2.11-1.66H8.1c.02 1.83 1.34 2.81 2.8 3.14V19h2.84v-1.61c1.55-.38 2.82-1.41 2.82-2.96 0-2.02-1.61-2.75-3.85-3.29z"/></svg>
+    @if (isLoading)
+    {
+        <div class="card" style="display: flex; justify-content: center; align-items: center; padding: 4rem;">
+            <div class="loader-pulse-ring"></div>
+        </div>
+    }
+    else
+    {
+        <!-- آمار اصلی -->
+        <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 1.5rem; margin-bottom: 2.5rem;">
+
+            <div class="card">
+                <h3 style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 1rem; font-weight: 500;">فروش این ماه</h3>
+                <div style="display: flex; align-items: baseline; gap: 0.5rem; flex-wrap: wrap;">
+                    <span class="industrial-num" style="font-size: 1.8rem; color: var(--primary-color);">@FormatNumber(monthlySales)</span>
+                    <span style="color: var(--text-muted); font-size: 0.85rem;">ریال</span>
+                </div>
+                <div style="margin-top: 0.75rem; font-size: 0.8rem; color: var(--text-muted);">
+                    <span style="font-family: var(--font-en); color: var(--text-main);">@monthlyInvoiceCount</span> فاکتور صادر شده
+                </div>
             </div>
-            <h3 style="color: var(--text-muted); font-size: 1rem; margin-bottom: 1rem; font-weight: 500;">فروش امروز</h3>
-            <div style="display: flex; align-items: baseline; gap: 0.5rem;">
-                <span class="industrial-num" style="font-size: 2.5rem; color: var(--primary-color); text-shadow: var(--shadow-neon);">125,000</span>
-                <span style="color: var(--text-muted); font-size: 0.9rem;">هزار تومان</span>
+
+            <div class="card">
+                <h3 style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 1rem; font-weight: 500;">سفارشات فعال</h3>
+                <div style="display: flex; align-items: baseline; gap: 0.5rem;">
+                    <span class="industrial-num" style="font-size: 1.8rem; color: var(--accent-color);">@activeInvoiceCount</span>
+                    <span style="color: var(--text-muted); font-size: 0.85rem;">سفارش</span>
+                </div>
+                <div style="margin-top: 0.75rem; font-size: 0.8rem; color: var(--text-muted);">در حال پیگیری و تولید</div>
             </div>
-            <div style="margin-top: 1rem; font-size: 0.85rem; color: var(--success); display: flex; align-items: center; gap: 0.3rem;">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"></polyline><polyline points="17 6 23 6 23 12"></polyline></svg>
-                <span>+12.5% نسبت به دیروز</span>
+
+            <div class="card" style="@(lowStockCount > 0 ? "border-color: var(--danger);" : "")">
+                <h3 style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 1rem; font-weight: 500;">هشدار موجودی انبار</h3>
+                <div style="display: flex; align-items: baseline; gap: 0.5rem;">
+                    <span class="industrial-num" style="font-size: 1.8rem; color: @(lowStockCount > 0 ? "var(--danger)" : "var(--success)");">@lowStockCount</span>
+                    <span style="color: var(--text-muted); font-size: 0.85rem;">کالا</span>
+                </div>
+                <div style="margin-top: 0.75rem; font-size: 0.8rem; color: @(lowStockCount > 0 ? "var(--danger)" : "var(--text-muted)");">
+                    @(lowStockCount > 0 ? "نیاز به شارژ فوری!" : "موجودی مطلوب")
+                </div>
             </div>
+
+            <div class="card">
+                <h3 style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 1rem; font-weight: 500;">مشتریان CRM</h3>
+                <div style="display: flex; align-items: baseline; gap: 0.5rem;">
+                    <span class="industrial-num" style="font-size: 1.8rem; color: var(--success);">@totalCustomers</span>
+                    <span style="color: var(--text-muted); font-size: 0.85rem;">مشتری</span>
+                </div>
+                <div style="margin-top: 0.75rem; font-size: 0.8rem; color: var(--text-muted);">ثبت شده در سیستم</div>
+            </div>
+
         </div>
 
-        <div class="card" style="position: relative; overflow: hidden;">
-            <div style="position: absolute; left: -20px; top: -20px; opacity: 0.05; color: var(--accent-color);">
-                <svg width="120" height="120" viewBox="0 0 24 24" fill="currentColor"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 9h-2V7h-2v5H6v2h2v5h2v-5h2v-2z"/></svg>
+        <!-- هشدار موجودی بحرانی -->
+        @if (lowStockProducts.Any())
+        {
+            <div class="card" style="margin-bottom: 1.5rem; padding: 0; border-color: var(--danger);">
+                <div style="padding: 0.75rem 1.5rem; border-bottom: 1px solid var(--border-color); display: flex; align-items: center; gap: 0.5rem;">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--danger)" stroke-width="2.5"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+                    <span style="font-size: 0.9rem; font-weight: 700; color: var(--danger);">کالاهای رو به اتمام انبار</span>
+                </div>
+                <div style="padding: 1rem 1.5rem; display: flex; gap: 1rem; flex-wrap: wrap;">
+                    @foreach (var p in lowStockProducts)
+                    {
+                        <div style="background: rgba(239,68,68,0.08); border: 1px solid rgba(239,68,68,0.3); padding: 0.5rem 1rem; border-radius: var(--radius-md); min-width: 160px;">
+                            <div style="font-size: 0.75rem; color: var(--text-muted); font-family: var(--font-en);">@p.Code</div>
+                            <div style="font-weight: bold; font-size: 0.85rem; margin: 0.2rem 0;">@p.Name</div>
+                            <div style="color: var(--danger); font-family: var(--font-en); font-weight: bold;">@p.StockQuantity <span style="font-family: var(--font-fa); font-size: 0.8rem;">@p.Unit</span></div>
+                        </div>
+                    }
+                </div>
             </div>
-            <h3 style="color: var(--text-muted); font-size: 1rem; margin-bottom: 1rem; font-weight: 500;">سفارشات در حال ساخت</h3>
-            <div style="display: flex; align-items: baseline; gap: 0.5rem;">
-                <span class="industrial-num" style="font-size: 2.5rem; color: var(--accent-color);">14</span>
-                <span style="color: var(--text-muted); font-size: 0.9rem;">سفارش</span>
-            </div>
-            <div style="margin-top: 1rem; font-size: 0.85rem; color: var(--text-muted); display: flex; align-items: center; gap: 0.3rem;">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
-                <span>نیازمند پیگیری تولید</span>
-            </div>
-        </div>
+        }
 
-        <div class="card" style="position: relative; overflow: hidden; border-left: 4px solid var(--danger);">
-            <div style="position: absolute; left: -20px; top: -20px; opacity: 0.05; color: var(--danger);">
-                <svg width="120" height="120" viewBox="0 0 24 24" fill="currentColor"><path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/></svg>
+        <!-- جدول آخرین فاکتورها -->
+        <div class="card" style="padding: 0;">
+            <div style="padding: 1.25rem 1.5rem; border-bottom: 1px solid var(--border-color);">
+                <h2 style="font-size: 1.05rem; font-weight: 700;">آخرین فاکتورهای صادر شده</h2>
             </div>
-            <h3 style="color: var(--text-muted); font-size: 1rem; margin-bottom: 1rem; font-weight: 500;">هشدار موجودی انبار</h3>
-            <div style="display: flex; align-items: baseline; gap: 0.5rem;">
-                <span class="industrial-num" style="font-size: 2.5rem; color: var(--danger); text-shadow: 0 0 15px rgba(239, 68, 68, 0.3);">3</span>
-                <span style="color: var(--text-muted); font-size: 0.9rem;">کالا رو به اتمام</span>
-            </div>
-            <div style="margin-top: 1rem; font-size: 0.85rem; color: var(--danger); display: flex; align-items: center; gap: 0.3rem;">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
-                <span>نیاز به شارژ فوری</span>
-            </div>
+            @if (!recentInvoices.Any())
+            {
+                <div style="padding: 3rem; text-align: center; color: var(--text-muted);">
+                    <p>هنوز فاکتوری ثبت نشده است.</p>
+                </div>
+            }
+            else
+            {
+                <table class="industrial-table" style="width: 100%; border-collapse: collapse;">
+                    <thead>
+                        <tr>
+                            <th style="padding: 1rem 1.5rem; text-align: right;">شماره سند</th>
+                            <th style="padding: 1rem 1.5rem; text-align: right;">مشتری</th>
+                            <th style="padding: 1rem 1.5rem; text-align: right;">وضعیت</th>
+                            <th style="padding: 1rem 1.5rem; text-align: right;">مبلغ نهایی (ریال)</th>
+                            <th style="padding: 1rem 1.5rem; text-align: right;">تاریخ</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var inv in recentInvoices)
+                        {
+                            <tr class="table-row-hover">
+                                <td style="padding: 1rem 1.5rem; font-family: var(--font-en); color: var(--primary-color); font-weight: bold;">@inv.InvoiceNumber</td>
+                                <td style="padding: 1rem 1.5rem; font-weight: bold;">@inv.CustomerName</td>
+                                <td style="padding: 1rem 1.5rem; font-size: 0.9rem;">
+                                    @if (inv.Status == "تحویل شده") { <span style="color: var(--accent-color); font-weight: bold;">@inv.Status</span> }
+                                    else if (inv.Status == "در حال ارسال") { <span style="color: var(--primary-color); font-weight: bold;">@inv.Status</span> }
+                                    else if (inv.Status == "آماده تحویل") { <span style="color: var(--success); font-weight: bold;">@inv.Status</span> }
+                                    else { <span style="color: var(--text-muted);">@inv.Status</span> }
+                                </td>
+                                <td style="padding: 1rem 1.5rem; font-family: var(--font-en); color: var(--success); font-weight: bold;">@inv.FinalAmount.ToString("N0")</td>
+                                <td style="padding: 1rem 1.5rem; font-family: var(--font-en); color: var(--text-muted); font-size: 0.85rem;">@inv.InvoiceDate.ToString("yyyy/MM/dd")</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
         </div>
-
-    </div>
-
-    <!-- جدول آخرین فاکتورها -->
-    <div class="card" style="padding: 0;">
-        <div style="padding: 1.5rem; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center;">
-            <h2 style="font-size: 1.2rem; font-weight: 600;">آخرین فاکتورهای صادر شده</h2>
-            <button class="btn-primary" style="padding: 0.5rem 1rem; font-size: 0.85rem;">+ صدور فاکتور جدید</button>
-        </div>
-        
-        <div style="padding: 3rem; text-align: center; color: var(--text-muted);">
-            <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="var(--border-color)" stroke-width="1" style="margin-bottom: 1rem;"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
-            <p style="font-size: 1.1rem; margin-bottom: 0.5rem;">داده‌ای برای نمایش وجود ندارد</p>
-            <p style="font-size: 0.9rem;">سیستم آماده ثبت اولین فاکتور شماست.</p>
-        </div>
-    </div>
+    }
 </div>
 
-<style>
-    @@keyframes fadeIn {
-        from { opacity: 0; transform: translateY(10px); }
-        to { opacity: 1; transform: translateY(0); }
+@code {
+    private AppDbContext _db = null!;
+    private bool isLoading = true;
+
+    private decimal monthlySales;
+    private int monthlyInvoiceCount;
+    private int activeInvoiceCount;
+    private int lowStockCount;
+    private int totalCustomers;
+    private List<Invoice> recentInvoices = new();
+    private List<Product> lowStockProducts = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        _db = await DbFactory.CreateDbContextAsync();
+        await LoadDashboardData();
     }
-</style>
+
+    private async Task LoadDashboardData()
+    {
+        isLoading = true;
+        try
+        {
+            var now = DateTime.Now;
+
+            monthlySales = await _db.Invoices
+                .Where(i => i.InvoiceDate.Year == now.Year && i.InvoiceDate.Month == now.Month)
+                .SumAsync(i => i.FinalAmount);
+
+            monthlyInvoiceCount = await _db.Invoices
+                .CountAsync(i => i.InvoiceDate.Year == now.Year && i.InvoiceDate.Month == now.Month);
+
+            activeInvoiceCount = await _db.Invoices
+                .CountAsync(i => i.Status != "تحویل شده");
+
+            lowStockCount = await _db.Products
+                .CountAsync(p => p.StockQuantity <= 5);
+
+            totalCustomers = await _db.Customers.CountAsync();
+
+            recentInvoices = await _db.Invoices
+                .AsNoTracking()
+                .OrderByDescending(i => i.Id)
+                .Take(8)
+                .ToListAsync();
+
+            lowStockProducts = await _db.Products
+                .AsNoTracking()
+                .Where(p => p.StockQuantity <= 5)
+                .OrderBy(p => p.StockQuantity)
+                .ToListAsync();
+        }
+        catch (Exception) { }
+        finally { isLoading = false; }
+    }
+
+    private string FormatNumber(decimal n)
+    {
+        if (n >= 1_000_000_000) return $"{n / 1_000_000_000:N1}G";
+        if (n >= 1_000_000) return $"{n / 1_000_000:N1}M";
+        if (n == 0) return "---";
+        return n.ToString("N0");
+    }
+
+    public void Dispose() => _db?.Dispose();
+}

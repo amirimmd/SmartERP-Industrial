@@ -3,7 +3,6 @@ using Microsoft.EntityFrameworkCore;
 using SmartERP.Infrastructure;
 using System.IO;
 using System;
-using Microsoft.Extensions.DependencyInjection;
 
 namespace SmartERP
 {
@@ -12,7 +11,7 @@ namespace SmartERP
         public static MauiApp CreateMauiApp()
         {
             var builder = MauiApp.CreateBuilder();
-            
+
             builder
                 .UseMauiApp<App>()
                 .ConfigureFonts(fonts =>
@@ -27,20 +26,42 @@ namespace SmartERP
             builder.Logging.AddDebug();
 #endif
 
-            // مسیر ذخیره‌سازی دیتابیس
-            var dbPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "SmartERP_Database.db");
-            
-            builder.Services.AddDbContext<AppDbContext>(options =>
+            var dbPath = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "SmartERP_Database.db");
+
+            // IDbContextFactory pattern - الگوی صحیح برای MAUI Blazor Hybrid
+            // هر عملیات DB یک instance مجزا می‌گیرد → هیچ‌وقت concurrent access error نمی‌دهد
+            builder.Services.AddDbContextFactory<AppDbContext>(options =>
                 options.UseSqlite($"Data Source={dbPath}"));
+
+            // AddTransient برای backward compatibility با صفحاتی که AppDbContext inject می‌کنند
+            builder.Services.AddTransient<AppDbContext>(sp =>
+                sp.GetRequiredService<IDbContextFactory<AppDbContext>>().CreateDbContext());
 
             var app = builder.Build();
 
-            // 🚀 ترفند صنعتی: ساخت دیتابیس فقط یک‌بار در زمان استارت هسته سیستم
-            // این کار باعث می‌شود تمام تب‌ها بدون نیاز به چک کردن دیتابیس با حداکثر سرعت لود شوند
-            using (var scope = app.Services.CreateScope())
+            // ایجاد و اعتبارسنجی schema دیتابیس هنگام استارت
+            var dbFactory = app.Services.GetRequiredService<IDbContextFactory<AppDbContext>>();
+            using (var db = dbFactory.CreateDbContext())
             {
-                var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-                dbContext.Database.EnsureCreated(); // ایجاد دیتابیس و جداول جدید در صورت عدم وجود
+                try
+                {
+                    db.Database.EnsureCreated();
+                    // FirstOrDefault() mapping کامل ستون‌ها را چک می‌کند
+                    // اگر ستون جدیدی اضافه شده باشد و در DB نباشد، exception می‌دهد
+                    _ = db.CompanySettings.FirstOrDefault();
+                    _ = db.Products.FirstOrDefault();
+                    _ = db.Invoices.FirstOrDefault();
+                    _ = db.Customers.FirstOrDefault();
+                    _ = db.Orders.FirstOrDefault();
+                }
+                catch (Exception)
+                {
+                    // Schema قدیمی → بازسازی کامل
+                    db.Database.EnsureDeleted();
+                    db.Database.EnsureCreated();
+                }
             }
 
             return app;
