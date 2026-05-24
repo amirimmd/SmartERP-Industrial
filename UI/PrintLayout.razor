@@ -1,0 +1,19 @@
+@inherits LayoutComponentBase
+
+<div style="background-color: white; color: black; min-height: 100vh; padding: 0;">
+    @Body
+</div>
+
+<style>
+    /* تنظیمات اختصاصی دستگاه پرینتر و برگه A4 */
+    @@media print {
+        @@page { size: A4 portrait; margin: 10mm; }
+        body, html { background: white !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        .no-print { display: none !important; }
+    }
+    
+    body {
+        background-color: #f3f4f6; /* رنگ خاکستری برای پیش‌نمایش در مانیتور */
+        font-family: 'Vazirmatn', Tahoma, sans-serif;
+    }
+</style>
