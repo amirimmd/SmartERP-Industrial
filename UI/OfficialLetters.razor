@@ -2,7 +2,8 @@
 @using SmartERP.Core
 @using SmartERP.Infrastructure
 @using Microsoft.EntityFrameworkCore
-@inject AppDbContext DbContext
+@implements IDisposable
+@inject IDbContextFactory<AppDbContext> DbFactory
 
 <div class="module-header">
     <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 2rem;">
@@ -10,8 +11,13 @@
             <h1 style="color: var(--primary-color); font-weight: 800; font-size: 1.8rem; margin-bottom: 0.5rem;">دبیرخانه و نامه‌های رسمی</h1>
             <p style="color: var(--text-muted); margin: 0; font-size: 0.95rem;">بایگانی نامه‌های اداری و استعلامات</p>
         </div>
-        <button class="btn-primary" @onclick="OpenAddModal">ایجاد نامه جدید</button>
+        <button class="btn-primary" @onclick="OpenAddModal">+ ایجاد نامه جدید</button>
     </div>
+
+    @if (!string.IsNullOrEmpty(pageError))
+    {
+        <div class="alert-error">@pageError</div>
+    }
 
     <div class="card" style="padding: 0; overflow-x: auto;">
         <table class="industrial-table" style="width: 100%; border-collapse: collapse;">
@@ -20,6 +26,7 @@
                     <th style="padding: 1rem 1.5rem; text-align: right;">شماره نامه</th>
                     <th style="padding: 1rem 1.5rem; text-align: right;">موضوع نامه</th>
                     <th style="padding: 1rem 1.5rem; text-align: right;">گیرنده</th>
+                    <th style="padding: 1rem 1.5rem; text-align: right;">وضعیت</th>
                     <th style="padding: 1rem 1.5rem; text-align: right;">تاریخ صدور</th>
                     <th style="padding: 1rem 1.5rem; text-align: center;">عملیات</th>
                 </tr>
@@ -27,11 +34,11 @@
             <tbody>
                 @if (isLoading)
                 {
-                    <tr><td colspan="5" style="padding: 3rem; text-align: center;"><div class="loader-pulse-ring" style="margin: 0 auto;"></div></td></tr>
+                    <tr><td colspan="6" style="padding: 3rem; text-align: center;"><div class="loader-pulse-ring" style="margin: 0 auto;"></div></td></tr>
                 }
                 else if (!letters.Any())
                 {
-                    <tr><td colspan="5" style="padding: 4rem 2rem; text-align: center; color: var(--text-muted);"><p>دبیرخانه خالی است.</p></td></tr>
+                    <tr><td colspan="6" style="padding: 4rem 2rem; text-align: center; color: var(--text-muted);">دبیرخانه خالی است. اولین نامه را ثبت کنید.</td></tr>
                 }
                 else
                 {
@@ -39,12 +46,15 @@
                     {
                         <tr class="table-row-hover">
                             <td style="padding: 1rem 1.5rem; font-family: var(--font-en); color: var(--primary-color); font-weight: bold;">@l.LetterNumber</td>
-                            <td style="padding: 1rem 1.5rem; color: var(--text-main); font-weight: bold;">@l.Subject</td>
+                            <td style="padding: 1rem 1.5rem; font-weight: bold;">@l.Subject</td>
                             <td style="padding: 1rem 1.5rem; color: var(--text-muted);">@l.Recipient</td>
-                            <td style="padding: 1rem 1.5rem; font-family: var(--font-en);">@l.IssueDate.ToString("yyyy/MM/dd")</td>
+                            <td style="padding: 1rem 1.5rem; font-size: 0.85rem;">
+                                <span style="background: rgba(59,130,246,0.1); color: var(--accent-color); padding: 0.2rem 0.5rem; border-radius: var(--radius-md);">@l.Status</span>
+                            </td>
+                            <td style="padding: 1rem 1.5rem; font-family: var(--font-en); color: var(--text-muted);">@l.IssueDate.ToString("yyyy/MM/dd")</td>
                             <td style="padding: 1rem 1.5rem; text-align: center;">
-                                <button style="background: var(--bg-color); border: 1px solid var(--border-color); color: var(--text-main); cursor: pointer; padding: 0.4rem 0.8rem; border-radius: var(--radius-md); font-weight: bold; margin-left: 0.5rem;" @onclick="() => ViewLetter(l)">مشاهده</button>
-                                <button style="background: none; border: none; color: var(--danger); cursor: pointer; padding: 0.5rem;" @onclick="() => DeleteLetter(l)">حذف</button>
+                                <button style="background: var(--bg-color); border: 1px solid var(--border-color); color: var(--text-main); cursor: pointer; padding: 0.3rem 0.6rem; border-radius: var(--radius-md); font-weight: bold; margin-left: 0.5rem;" @onclick="() => ViewLetter(l)">مشاهده / چاپ</button>
+                                <button style="background: none; border: none; color: var(--danger); cursor: pointer; padding: 0.3rem;" @onclick="() => DeleteLetter(l.Id)">حذف</button>
                             </td>
                         </tr>
                     }
@@ -56,78 +66,147 @@
 
 @if (isModalOpen)
 {
-    <div style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background-color: rgba(9, 9, 11, 0.9); z-index: 100; display: flex; align-items: center; justify-content: center;">
-        <div class="card" style="width: 100%; max-width: 800px; border-top: 3px solid var(--primary-color);">
-            <div style="margin-bottom: 1.5rem; border-bottom: 1px solid var(--border-color); padding-bottom: 1rem;">
-                <h2 style="font-size: 1.3rem; color: var(--text-main); font-weight: 800;">@((viewOnly) ? "مشاهده نامه" : "ثبت نامه جدید")</h2>
+    <div style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background-color: rgba(9,9,11,0.9); z-index: 100; display: flex; align-items: center; justify-content: center;" @onclick="CloseModal">
+        <div class="card" style="width: 100%; max-width: 820px; max-height: 90vh; overflow-y: auto; border-top: 3px solid var(--primary-color);" @onclick:stopPropagation="true">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; border-bottom: 1px solid var(--border-color); padding-bottom: 1rem;">
+                <h2 style="font-size: 1.3rem; color: var(--text-main); font-weight: 800;">@(viewOnly ? "مشاهده نامه رسمی" : "ثبت نامه جدید")</h2>
+                <button style="background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 1.5rem; padding: 0.2rem 0.5rem;" @onclick="CloseModal">✕</button>
             </div>
 
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
-                <div class="form-group">
-                    <label style="display: block; margin-bottom: 0.5rem; color: var(--text-muted);">شماره نامه</label>
-                    <input type="text" @bind="editingLetter.LetterNumber" class="input-field" style="font-family: var(--font-en);" readonly="@viewOnly" />
+            @if (!string.IsNullOrEmpty(modalError))
+            {
+                <div class="alert-error">@modalError</div>
+            }
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
+                <div>
+                    <label style="display: block; margin-bottom: 0.5rem; color: var(--text-muted); font-size: 0.85rem;">شماره نامه</label>
+                    <input type="text" @bind="editingLetter.LetterNumber" class="input-field" style="margin-bottom: 0; font-family: var(--font-en); direction: ltr;" readonly="@viewOnly" />
                 </div>
-                <div class="form-group">
-                    <label style="display: block; margin-bottom: 0.5rem; color: var(--text-muted);">گیرنده</label>
-                    <input type="text" @bind="editingLetter.Recipient" class="input-field" readonly="@viewOnly" />
+                <div>
+                    <label style="display: block; margin-bottom: 0.5rem; color: var(--text-muted); font-size: 0.85rem;">گیرنده / مرجع</label>
+                    <input type="text" @bind="editingLetter.Recipient" class="input-field" style="margin-bottom: 0;" readonly="@viewOnly" />
+                </div>
+                <div>
+                    <label style="display: block; margin-bottom: 0.5rem; color: var(--text-muted); font-size: 0.85rem;">وضعیت</label>
+                    <select @bind="editingLetter.Status" class="input-field" style="margin-bottom: 0;" disabled="@viewOnly">
+                        <option value="صادر شده">صادر شده</option>
+                        <option value="در انتظار پاسخ">در انتظار پاسخ</option>
+                        <option value="پاسخ دریافت شد">پاسخ دریافت شد</option>
+                        <option value="بایگانی">بایگانی</option>
+                    </select>
                 </div>
             </div>
 
-            <div class="form-group" style="margin-bottom: 1rem;">
-                <label style="display: block; margin-bottom: 0.5rem; color: var(--text-muted);">موضوع نامه</label>
-                <input type="text" @bind="editingLetter.Subject" class="input-field" readonly="@viewOnly" />
+            <div style="margin-bottom: 1rem;">
+                <label style="display: block; margin-bottom: 0.5rem; color: var(--text-muted); font-size: 0.85rem;">موضوع نامه *</label>
+                <input type="text" @bind="editingLetter.Subject" class="input-field" style="margin-bottom: 0;" readonly="@viewOnly" />
             </div>
 
-            <div class="form-group" style="margin-bottom: 1.5rem;">
-                <label style="display: block; margin-bottom: 0.5rem; color: var(--text-muted);">متن نامه</label>
-                <textarea @bind="editingLetter.Content" class="input-field" style="min-height: 250px; resize: vertical;" readonly="@viewOnly"></textarea>
+            <div style="margin-bottom: 1.5rem;">
+                <label style="display: block; margin-bottom: 0.5rem; color: var(--text-muted); font-size: 0.85rem;">متن نامه</label>
+                <textarea @bind="editingLetter.Content" class="input-field" style="min-height: 280px; resize: vertical; margin-bottom: 0; font-size: 0.95rem; line-height: 2;" readonly="@viewOnly"></textarea>
             </div>
 
             <div style="display: flex; gap: 1rem;">
                 @if (!viewOnly)
                 {
-                    <button class="btn-primary" style="flex: 1;" @onclick="SaveLetter">ذخیره در دبیرخانه</button>
+                    <button class="btn-primary" style="flex: 1;" @onclick="SaveLetter" disabled="@isSaving">
+                        @if (isSaving) { <span>در حال ذخیره...</span> } else { <span>ذخیره در دبیرخانه</span> }
+                    </button>
                 }
-                <button style="flex: 1; background: var(--bg-color); border: 1px solid var(--border-color); color: var(--text-main); border-radius: var(--radius-md); cursor: pointer; font-weight: bold;" @onclick="CloseModal">بستن</button>
+                <button style="flex: 1; background: var(--bg-color); border: 1px solid var(--border-color); color: var(--text-main); border-radius: var(--radius-md); cursor: pointer; font-weight: bold; padding: 0.6rem;" @onclick="CloseModal">بستن</button>
             </div>
         </div>
     </div>
 }
 
 @code {
+    private AppDbContext _db = null!;
     private List<OfficialLetter> letters = new();
     private bool isLoading = true;
+    private bool isSaving = false;
     private bool isModalOpen = false;
     private bool viewOnly = false;
     private OfficialLetter editingLetter = new();
+    private string pageError = "";
+    private string modalError = "";
 
     protected override async Task OnInitializedAsync()
     {
-        // 🚀 سرعت بالا: بدون چک کردن دیتابیس
-        await Task.Yield();
+        _db = await DbFactory.CreateDbContextAsync();
         await LoadLetters();
     }
 
     private async Task LoadLetters()
     {
         isLoading = true;
-        try { letters = await DbContext.OfficialLetters.AsNoTracking().OrderByDescending(l => l.Id).ToListAsync(); }
+        pageError = "";
+        try
+        {
+            letters = await _db.OfficialLetters.AsNoTracking().OrderByDescending(l => l.Id).ToListAsync();
+        }
+        catch (Exception ex) { pageError = ex.Message; }
         finally { isLoading = false; }
     }
 
-    private void OpenAddModal() { editingLetter = new OfficialLetter { LetterNumber = "LTR-" + DateTime.Now.ToString("MMdd-HHmm") }; viewOnly = false; isModalOpen = true; }
-    private void ViewLetter(OfficialLetter l) { editingLetter = l; viewOnly = true; isModalOpen = true; }
-    private void CloseModal() { isModalOpen = false; }
+    private void OpenAddModal()
+    {
+        editingLetter = new OfficialLetter
+        {
+            LetterNumber = "LTR-" + DateTime.Now.ToString("yyyyMMdd-HHmm"),
+            IssueDate = DateTime.Now,
+            Status = "صادر شده"
+        };
+        viewOnly = false;
+        modalError = "";
+        isModalOpen = true;
+    }
+
+    private void ViewLetter(OfficialLetter l)
+    {
+        editingLetter = new OfficialLetter
+        {
+            Id = l.Id, LetterNumber = l.LetterNumber, Subject = l.Subject,
+            Recipient = l.Recipient, Content = l.Content, IssueDate = l.IssueDate, Status = l.Status
+        };
+        viewOnly = true;
+        isModalOpen = true;
+    }
+
+    private void CloseModal() { isModalOpen = false; modalError = ""; }
 
     private async Task SaveLetter()
     {
-        if (string.IsNullOrWhiteSpace(editingLetter.Subject)) return;
-        try { DbContext.OfficialLetters.Add(editingLetter); await DbContext.SaveChangesAsync(); await LoadLetters(); CloseModal(); }
-        catch (Exception) { }
+        if (string.IsNullOrWhiteSpace(editingLetter.Subject))
+        {
+            modalError = "موضوع نامه الزامی است.";
+            return;
+        }
+        isSaving = true;
+        try
+        {
+            await using var saveDb = await DbFactory.CreateDbContextAsync();
+            saveDb.OfficialLetters.Add(editingLetter);
+            await saveDb.SaveChangesAsync();
+            await LoadLetters();
+            CloseModal();
+        }
+        catch (Exception ex) { modalError = ex.Message; }
+        finally { isSaving = false; }
     }
 
-    private async Task DeleteLetter(OfficialLetter l)
+    private async Task DeleteLetter(int id)
     {
-        try { DbContext.OfficialLetters.Remove(l); await DbContext.SaveChangesAsync(); await LoadLetters(); } catch (Exception) { }
+        try
+        {
+            await using var deleteDb = await DbFactory.CreateDbContextAsync();
+            var l = await deleteDb.OfficialLetters.FindAsync(id);
+            if (l != null) { deleteDb.OfficialLetters.Remove(l); await deleteDb.SaveChangesAsync(); }
+            await LoadLetters();
+        }
+        catch (Exception ex) { pageError = ex.Message; }
     }
+
+    public void Dispose() => _db?.Dispose();
 }

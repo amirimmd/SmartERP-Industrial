@@ -5,65 +5,90 @@
 @using Microsoft.EntityFrameworkCore
 @using System.Text.Json
 @using Microsoft.JSInterop
-@inject AppDbContext DbContext
+@implements IDisposable
+@inject IDbContextFactory<AppDbContext> DbFactory
 @inject IJSRuntime JSRuntime
 @inject NavigationManager NavManager
 
 @if (isLoading)
 {
-    <div style="text-align: center; padding: 5rem; color: #000;">در حال آماده سازی سند چاپی...</div>
+    <div style="text-align: center; padding: 5rem; color: #000; font-family: 'Tahoma';">در حال آماده‌سازی سند چاپی...</div>
 }
-else if (invoice != null && company != null)
+else if (invoice == null || company == null)
+{
+    <div style="text-align: center; padding: 5rem; color: #c00; font-family: 'Tahoma';">فاکتور یافت نشد.</div>
+}
+else
 {
     <!-- پیش‌نمایش A4 -->
     <div class="a4-page">
         <!-- هدر فاکتور -->
-        <div style="display: flex; justify-content: space-between; border-bottom: 2px solid #000; padding-bottom: 1rem; margin-bottom: 1rem;">
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #222; padding-bottom: 0.75rem; margin-bottom: 0.75rem;">
             <div style="flex: 1; text-align: right;">
-                <h1 style="font-size: 1.5rem; font-weight: bold; margin: 0 0 0.5rem 0;">@company.CompanyName</h1>
-                <p style="font-size: 0.9rem; margin: 0;">@company.Slogan</p>
-                <p style="font-size: 0.85rem; margin: 0; color: #555;">تلفن: <span style="font-family: 'JetBrains Mono';">@company.PhoneNumber</span></p>
-            </div>
-            
-            <div style="flex: 1; text-align: center;">
-                @if (!string.IsNullOrEmpty(company.LogoPath))
+                <h1 style="font-size: 1.4rem; font-weight: bold; margin: 0 0 0.3rem 0; color: #111;">@company.CompanyName</h1>
+                @if (!string.IsNullOrEmpty(company.Slogan))
                 {
-                    <img src="@company.LogoPath" style="max-height: 80px;" />
+                    <p style="font-size: 0.85rem; margin: 0; color: #555;">@company.Slogan</p>
+                }
+                @if (!string.IsNullOrEmpty(company.PhoneNumber))
+                {
+                    <p style="font-size: 0.8rem; margin: 0.2rem 0 0; color: #555;">تلفن: <span style="font-family: 'Courier New', monospace; direction: ltr; display: inline-block;">@company.PhoneNumber</span></p>
                 }
             </div>
 
-            <div style="flex: 1; text-align: left; font-size: 0.9rem; line-height: 1.6;">
-                <p style="margin: 0;">سند: <strong style="font-size: 1.1rem;">@invoice.InvoiceType</strong></p>
-                <p style="margin: 0;">شماره: <strong style="font-family: 'JetBrains Mono';">@invoice.InvoiceNumber</strong></p>
-                <p style="margin: 0;">تاریخ: <strong style="font-family: 'JetBrains Mono';">@invoice.InvoiceDate.ToString("yyyy/MM/dd")</strong></p>
+            <div style="flex: 0 0 auto; padding: 0 1.5rem;">
+                @if (!string.IsNullOrEmpty(company.LogoPath) && company.LogoPath != "/images/default-logo.png")
+                {
+                    <img src="@company.LogoPath" style="max-height: 75px; max-width: 120px; object-fit: contain;" alt="Logo" />
+                }
+            </div>
+
+            <div style="flex: 1; text-align: left; font-size: 0.85rem; line-height: 1.7; color: #333; direction: rtl;">
+                <div>سند: <strong style="font-size: 1rem; color: #111;">@invoice.InvoiceType</strong></div>
+                <div>شماره: <strong style="font-family: 'Courier New', monospace; direction: ltr; display: inline-block;">@invoice.InvoiceNumber</strong></div>
+                <div>تاریخ: <strong style="font-family: 'Courier New', monospace; direction: ltr; display: inline-block;">@invoice.InvoiceDate.ToString("yyyy/MM/dd")</strong></div>
+                <div>وضعیت: <strong>@invoice.Status</strong></div>
             </div>
         </div>
 
         <!-- اطلاعات خریدار و لجستیک -->
-        <div style="border: 1px solid #000; border-radius: 4px; margin-bottom: 1.5rem; display: flex;">
-            <div style="flex: 1; border-left: 1px solid #000; padding: 0.5rem;">
-                <h3 style="font-size: 0.9rem; margin: 0 0 0.5rem 0; border-bottom: 1px dashed #ccc;">مشخصات خریدار</h3>
-                <p style="margin: 0 0 0.3rem 0; font-size: 0.85rem;"><strong>نام/شرکت:</strong> @invoice.CustomerName</p>
-                <p style="margin: 0 0 0.3rem 0; font-size: 0.85rem;"><strong>تلفن خریدار:</strong> <span style="font-family: 'JetBrains Mono';">@(string.IsNullOrEmpty(invoice.CustomerPhone) ? "---" : invoice.CustomerPhone)</span></p>
-                <p style="margin: 0; font-size: 0.85rem;"><strong>محل تحویل:</strong> @(string.IsNullOrEmpty(invoice.DeliveryAddress) ? "---" : invoice.DeliveryAddress)</p>
+        <div style="border: 1px solid #ccc; margin-bottom: 1rem; display: grid; grid-template-columns: 1fr 1fr;">
+            <div style="border-left: 1px solid #ccc; padding: 0.6rem 0.75rem;">
+                <div style="font-size: 0.8rem; font-weight: bold; margin-bottom: 0.4rem; color: #444; border-bottom: 1px dashed #ddd; padding-bottom: 0.3rem;">مشخصات خریدار</div>
+                <div style="font-size: 0.82rem; margin-bottom: 0.2rem;"><strong>نام:</strong> @invoice.CustomerName</div>
+                @if (!string.IsNullOrEmpty(invoice.CustomerPhone))
+                {
+                    <div style="font-size: 0.82rem; margin-bottom: 0.2rem;"><strong>تلفن:</strong> <span style="font-family: 'Courier New', monospace; direction: ltr; display: inline-block;">@invoice.CustomerPhone</span></div>
+                }
+                @if (!string.IsNullOrEmpty(invoice.ProjectName))
+                {
+                    <div style="font-size: 0.82rem; margin-bottom: 0.2rem;"><strong>پروژه:</strong> @invoice.ProjectName</div>
+                }
+                @if (!string.IsNullOrEmpty(invoice.DeliveryAddress))
+                {
+                    <div style="font-size: 0.8rem; color: #555;"><strong>محل تحویل:</strong> @invoice.DeliveryAddress</div>
+                }
             </div>
-            <div style="flex: 1; padding: 0.5rem;">
-                <h3 style="font-size: 0.9rem; margin: 0 0 0.5rem 0; border-bottom: 1px dashed #ccc;">مشخصات باربری و راننده</h3>
-                <p style="margin: 0 0 0.3rem 0; font-size: 0.85rem;"><strong>وضعیت کالا:</strong> @invoice.Status</p>
-                <p style="margin: 0 0 0.3rem 0; font-size: 0.85rem;"><strong>نام راننده:</strong> @(string.IsNullOrEmpty(invoice.DriverName) ? "تعیین نشده" : invoice.DriverName)</p>
-                <p style="margin: 0; font-size: 0.85rem;"><strong>پلاک خودرو:</strong> <span style="font-family: 'JetBrains Mono';">@(string.IsNullOrEmpty(invoice.VehiclePlate) ? "---" : invoice.VehiclePlate)</span></p>
+            <div style="padding: 0.6rem 0.75rem;">
+                <div style="font-size: 0.8rem; font-weight: bold; margin-bottom: 0.4rem; color: #444; border-bottom: 1px dashed #ddd; padding-bottom: 0.3rem;">مشخصات باربری</div>
+                <div style="font-size: 0.82rem; margin-bottom: 0.2rem;"><strong>نام راننده:</strong> @(string.IsNullOrEmpty(invoice.DriverName) ? "تعیین نشده" : invoice.DriverName)</div>
+                @if (!string.IsNullOrEmpty(invoice.DriverPhone))
+                {
+                    <div style="font-size: 0.82rem; margin-bottom: 0.2rem;"><strong>موبایل:</strong> <span style="font-family: 'Courier New', monospace; direction: ltr; display: inline-block;">@invoice.DriverPhone</span></div>
+                }
+                <div style="font-size: 0.82rem;"><strong>پلاک:</strong> <span style="font-family: 'Courier New', monospace;">@(string.IsNullOrEmpty(invoice.VehiclePlate) ? "---" : invoice.VehiclePlate)</span></div>
             </div>
         </div>
 
         <!-- جدول اقلام -->
-        <table style="width: 100%; border-collapse: collapse; margin-bottom: 1.5rem; text-align: center;">
+        <table style="width: 100%; border-collapse: collapse; margin-bottom: 1rem; font-size: 0.85rem;">
             <thead>
-                <tr style="background-color: #f3f4f6; border: 1px solid #000;">
-                    <th style="padding: 0.5rem; border: 1px solid #000; width: 5%;">ردیف</th>
-                    <th style="padding: 0.5rem; border: 1px solid #000; text-align: right;">شرح کالا</th>
-                    <th style="padding: 0.5rem; border: 1px solid #000; width: 10%;">تعداد</th>
-                    <th style="padding: 0.5rem; border: 1px solid #000; width: 20%;">فی (ریال)</th>
-                    <th style="padding: 0.5rem; border: 1px solid #000; width: 25%;">مبلغ کل (ریال)</th>
+                <tr style="background-color: #f3f4f6; border: 1px solid #ccc;">
+                    <th style="padding: 0.4rem 0.6rem; border: 1px solid #ccc; width: 5%; text-align: center;">ردیف</th>
+                    <th style="padding: 0.4rem 0.6rem; border: 1px solid #ccc; text-align: right;">شرح کالا</th>
+                    <th style="padding: 0.4rem 0.6rem; border: 1px solid #ccc; width: 10%; text-align: center;">تعداد</th>
+                    <th style="padding: 0.4rem 0.6rem; border: 1px solid #ccc; width: 20%; text-align: center;">فی (ریال)</th>
+                    <th style="padding: 0.4rem 0.6rem; border: 1px solid #ccc; width: 22%; text-align: center;">مبلغ کل (ریال)</th>
                 </tr>
             </thead>
             <tbody>
@@ -71,77 +96,117 @@ else if (invoice != null && company != null)
                 @foreach (var item in items)
                 {
                     <tr>
-                        <td style="padding: 0.5rem; border: 1px solid #000; font-family: 'JetBrains Mono';">@row</td>
-                        <td style="padding: 0.5rem; border: 1px solid #000; text-align: right; font-weight: bold;">@item.ProductName</td>
-                        <td style="padding: 0.5rem; border: 1px solid #000; font-family: 'JetBrains Mono';">@item.Quantity</td>
-                        <td style="padding: 0.5rem; border: 1px solid #000; font-family: 'JetBrains Mono';">@item.UnitPrice.ToString("N0")</td>
-                        <td style="padding: 0.5rem; border: 1px solid #000; font-family: 'JetBrains Mono'; font-weight: bold;">@((item.UnitPrice * (decimal)item.Quantity).ToString("N0"))</td>
+                        <td style="padding: 0.4rem; border: 1px solid #ddd; text-align: center; font-family: 'Courier New', monospace;">@row</td>
+                        <td style="padding: 0.4rem 0.6rem; border: 1px solid #ddd; font-weight: bold;">@item.ProductName</td>
+                        <td style="padding: 0.4rem; border: 1px solid #ddd; text-align: center; font-family: 'Courier New', monospace;">@item.Quantity</td>
+                        <td style="padding: 0.4rem; border: 1px solid #ddd; text-align: center; font-family: 'Courier New', monospace;">@item.UnitPrice.ToString("N0")</td>
+                        <td style="padding: 0.4rem; border: 1px solid #ddd; text-align: center; font-family: 'Courier New', monospace; font-weight: bold;">@((item.UnitPrice * (decimal)item.Quantity).ToString("N0"))</td>
                     </tr>
                     row++;
+                }
+                <!-- ردیف‌های خالی برای امضا -->
+                @for (int i = 0; i < Math.Max(0, 5 - items.Count); i++)
+                {
+                    <tr style="height: 28px;">
+                        <td style="border: 1px solid #ddd;"></td>
+                        <td style="border: 1px solid #ddd;"></td>
+                        <td style="border: 1px solid #ddd;"></td>
+                        <td style="border: 1px solid #ddd;"></td>
+                        <td style="border: 1px solid #ddd;"></td>
+                    </tr>
                 }
             </tbody>
         </table>
 
-        <!-- اطلاعات پرداخت و حساب بانکی -->
-        <div style="border: 2px solid #000; border-radius: 4px; margin-bottom: 1.5rem; display: flex;">
-            <div style="flex: 1; border-left: 1px solid #000; padding: 0.5rem; background-color: #fafafa;">
-                <h3 style="font-size: 0.9rem; margin: 0 0 0.5rem 0; border-bottom: 1px dashed #ccc;">نحوه تسویه حساب: <strong style="font-size: 1rem;">@invoice.PaymentMethod</strong></h3>
-                <div style="display: flex; gap: 1rem; margin-bottom: 0.3rem;">
-                    <p style="margin: 0; font-size: 0.85rem;"><strong>نقدی:</strong> <span style="font-family: 'JetBrains Mono';">@invoice.CashAmount.ToString("N0")</span> ریال</p>
-                    <p style="margin: 0; font-size: 0.85rem;"><strong>چکی:</strong> <span style="font-family: 'JetBrains Mono';">@invoice.CheckAmount.ToString("N0")</span> ریال</p>
+        <!-- اطلاعات مالی و پرداخت -->
+        <div style="border: 1.5px solid #222; margin-bottom: 0.75rem; display: grid; grid-template-columns: 1fr auto;">
+            <div style="border-left: 1px solid #ccc; padding: 0.6rem 0.75rem;">
+                <div style="font-size: 0.8rem; font-weight: bold; margin-bottom: 0.4rem; color: #333;">نحوه تسویه حساب: <span style="font-size: 0.9rem;">@invoice.PaymentMethod</span></div>
+                <div style="display: flex; gap: 2rem; font-size: 0.82rem; margin-bottom: 0.3rem;">
+                    <span><strong>نقدی:</strong> <span style="font-family: 'Courier New', monospace;">@invoice.CashAmount.ToString("N0")</span> ریال</span>
+                    <span><strong>چک:</strong> <span style="font-family: 'Courier New', monospace;">@invoice.CheckAmount.ToString("N0")</span> ریال</span>
                 </div>
                 @if (!string.IsNullOrEmpty(invoice.CheckDetails))
                 {
-                    <p style="margin: 0; font-size: 0.85rem;"><strong>مشخصات چک:</strong> @invoice.CheckDetails</p>
+                    <div style="font-size: 0.8rem; color: #444;"><strong>مشخصات چک:</strong> @invoice.CheckDetails</div>
                 }
             </div>
-            
-            <!-- کادر جمع کل -->
-            <div style="width: 300px; padding: 0.5rem; display: flex; flex-direction: column; justify-content: center;">
-                <div style="display: flex; justify-content: space-between; border-bottom: 1px dashed #000; padding-bottom: 0.3rem; margin-bottom: 0.3rem; font-size: 0.9rem;">
-                    <span>جمع اقلام:</span>
-                    <span style="font-family: 'JetBrains Mono';">@invoice.TotalAmount.ToString("N0")</span>
+            <div style="width: 260px; padding: 0.6rem; display: flex; flex-direction: column; gap: 0.3rem;">
+                <div style="display: flex; justify-content: space-between; font-size: 0.82rem; color: #555;">
+                    <span>جمع اقلام:</span><span style="font-family: 'Courier New', monospace;">@invoice.TotalAmount.ToString("N0")</span>
                 </div>
-                <div style="display: flex; justify-content: space-between; font-weight: bold; font-size: 1.2rem;">
-                    <span>مبلغ نهایی:</span>
-                    <span style="font-family: 'JetBrains Mono';">@invoice.FinalAmount.ToString("N0") ریال</span>
+                @if (invoice.Discount > 0)
+                {
+                    <div style="display: flex; justify-content: space-between; font-size: 0.82rem; color: #d00;">
+                        <span>تخفیف:</span><span style="font-family: 'Courier New', monospace;">(@invoice.Discount.ToString("N0"))</span>
+                    </div>
+                }
+                @if (invoice.Tax > 0)
+                {
+                    <div style="display: flex; justify-content: space-between; font-size: 0.82rem; color: #555;">
+                        <span>مالیات ارزش افزوده:</span><span style="font-family: 'Courier New', monospace;">@invoice.Tax.ToString("N0")</span>
+                    </div>
+                }
+                <div style="display: flex; justify-content: space-between; font-weight: bold; font-size: 1rem; border-top: 1px solid #000; padding-top: 0.3rem; margin-top: 0.2rem;">
+                    <span>مبلغ نهایی:</span><span style="font-family: 'Courier New', monospace;">@invoice.FinalAmount.ToString("N0") ریال</span>
                 </div>
             </div>
         </div>
 
         <!-- حساب بانکی فروشنده -->
-        <div style="border: 1px dashed #000; padding: 0.5rem; margin-bottom: 1.5rem; text-align: center; font-size: 0.85rem; border-radius: 4px;">
-            <strong>شماره حساب واریزی (@company.BankName):</strong> 
-            شماره کارت <span style="font-family: 'JetBrains Mono';">@company.AccountNumber</span> | 
-            شبا: <span style="font-family: 'JetBrains Mono';">@company.ShabaNumber</span> | 
-            به نام: <strong>@company.CardOwner</strong>
-        </div>
+        @if (!string.IsNullOrEmpty(company.BankName) || !string.IsNullOrEmpty(company.AccountNumber))
+        {
+            <div style="border: 1px dashed #999; padding: 0.4rem 0.75rem; margin-bottom: 1rem; font-size: 0.8rem; color: #444; text-align: center;">
+                <strong>اطلاعات واریز (@company.BankName):</strong>
+                @if (!string.IsNullOrEmpty(company.AccountNumber))
+                {
+                    <span> شماره کارت <span style="font-family: 'Courier New', monospace; direction: ltr; display: inline-block;">@company.AccountNumber</span></span>
+                }
+                @if (!string.IsNullOrEmpty(company.ShabaNumber))
+                {
+                    <span> | شبا: <span style="font-family: 'Courier New', monospace;">@company.ShabaNumber</span></span>
+                }
+                @if (!string.IsNullOrEmpty(company.CardOwner))
+                {
+                    <span> | به نام: <strong>@company.CardOwner</strong></span>
+                }
+            </div>
+        }
 
         <!-- فوتر و امضاها -->
-        <div style="display: flex; justify-content: space-between; border-top: 1px solid #000; padding-top: 2rem; margin-top: auto;">
-            <div style="text-align: center; flex: 1;">
-                <p style="font-weight: bold; margin-bottom: 3rem;">مهر و امضای فروشنده</p>
-                <p style="font-size: 0.8rem; color: #555;">واحد مالی / حسابداری</p>
+        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem; border-top: 1.5px solid #333; padding-top: 1.5rem; margin-top: auto;">
+            <div style="text-align: center; border: 1px solid #ddd; border-radius: 4px; padding: 0.75rem;">
+                <p style="font-weight: bold; margin-bottom: 3rem; font-size: 0.85rem;">مهر و امضای فروشنده</p>
+                <p style="font-size: 0.75rem; color: #777;">واحد مالی / حسابداری</p>
             </div>
-            <div style="text-align: center; flex: 1;">
-                <p style="font-weight: bold; margin-bottom: 3rem;">امضای راننده / باربری</p>
-                <p style="font-size: 0.8rem; color: #555;">تاییدیه سلامت بار در مبدا</p>
+            <div style="text-align: center; border: 1px solid #ddd; border-radius: 4px; padding: 0.75rem;">
+                <p style="font-weight: bold; margin-bottom: 3rem; font-size: 0.85rem;">امضای راننده / باربری</p>
+                <p style="font-size: 0.75rem; color: #777;">تاییدیه سلامت بار در مبدا</p>
             </div>
-            <div style="text-align: center; flex: 1;">
-                <p style="font-weight: bold; margin-bottom: 3rem;">مهر و امضای خریدار</p>
-                <p style="font-size: 0.8rem; color: #555;">تاییدیه دریافت کامل و سالم کالا</p>
+            <div style="text-align: center; border: 1px solid #ddd; border-radius: 4px; padding: 0.75rem;">
+                <p style="font-weight: bold; margin-bottom: 3rem; font-size: 0.85rem;">مهر و امضای خریدار</p>
+                <p style="font-size: 0.75rem; color: #777;">تاییدیه دریافت کامل و سالم کالا</p>
             </div>
         </div>
 
-        <div style="text-align: center; font-size: 0.75rem; border-top: 1px dashed #ccc; padding-top: 0.5rem; margin-top: 2rem;">
-            آدرس کارخانه: @company.Address
-        </div>
+        @if (!string.IsNullOrEmpty(company.Address))
+        {
+            <div style="text-align: center; font-size: 0.75rem; color: #666; border-top: 1px dashed #ccc; padding-top: 0.5rem; margin-top: 1rem;">
+                آدرس کارخانه: @company.Address
+            </div>
+        }
     </div>
 
-    <!-- دکمه‌های کنترل مانیتور (در پرینت مخفی می‌شوند) -->
-    <div class="no-print" style="position: fixed; bottom: 20px; right: 20px; display: flex; gap: 10px;">
-        <button onclick="@(async () => await JSRuntime.InvokeVoidAsync("window.print"))" style="background-color: #f59e0b; color: #000; padding: 10px 20px; border: none; border-radius: 5px; font-weight: bold; cursor: pointer; font-family: 'Vazirmatn'; box-shadow: 0 4px 6px rgba(0,0,0,0.3);">🖨️ فرمان چاپ روی برگه A4</button>
-        <button @onclick="GoBack" style="background-color: #374151; color: #fff; padding: 10px 20px; border: none; border-radius: 5px; font-weight: bold; cursor: pointer; font-family: 'Vazirmatn';">بازگشت</button>
+    <!-- دکمه‌های کنترل (در پرینت مخفی) -->
+    <div class="no-print" style="position: fixed; bottom: 20px; left: 20px; display: flex; gap: 10px; z-index: 10;">
+        <button @onclick="PrintPage"
+                style="background-color: #f59e0b; color: #000; padding: 10px 24px; border: none; border-radius: 5px; font-weight: bold; cursor: pointer; font-family: 'Tahoma'; font-size: 1rem;">
+            چاپ روی A4
+        </button>
+        <button @onclick="GoBack"
+                style="background-color: #374151; color: #fff; padding: 10px 20px; border: none; border-radius: 5px; font-weight: bold; cursor: pointer; font-family: 'Tahoma';">
+            بازگشت
+        </button>
     </div>
 }
 
@@ -149,52 +214,67 @@ else if (invoice != null && company != null)
     .a4-page {
         width: 210mm;
         min-height: 297mm;
-        margin: 10mm auto;
+        margin: 8mm auto;
         background: white;
-        padding: 15mm;
-        box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        color: #111;
+        padding: 12mm;
+        font-family: 'Tahoma', sans-serif;
+        direction: rtl;
         display: flex;
         flex-direction: column;
+        border: 1px solid #ddd;
     }
     @@media print {
-        .a4-page { margin: 0; box-shadow: none; border: none; width: auto; min-height: auto; padding: 0; }
+        .no-print { display: none !important; }
+        .a4-page {
+            margin: 0;
+            border: none;
+            width: auto;
+            min-height: auto;
+            padding: 8mm;
+        }
+        body { background: white !important; }
     }
 </style>
 
 @code {
     [Parameter] public int Id { get; set; }
-    
+
+    private AppDbContext _db = null!;
     private Invoice? invoice;
     private CompanySetting? company;
     private bool isLoading = true;
-    
-    private class TempItem { 
+
+    private class PrintItem
+    {
         public string ProductName { get; set; } = string.Empty;
-        public double Quantity { get; set; } 
-        public decimal UnitPrice { get; set; } 
+        public double Quantity { get; set; }
+        public decimal UnitPrice { get; set; }
     }
-    private List<TempItem> items = new();
+    private List<PrintItem> items = new();
 
     protected override async Task OnInitializedAsync()
     {
-        await Task.Yield();
+        _db = await DbFactory.CreateDbContextAsync();
         try
         {
-            invoice = await DbContext.Invoices.FirstOrDefaultAsync(i => i.Id == Id);
-            company = await DbContext.CompanySettings.FirstOrDefaultAsync();
+            invoice = await _db.Invoices.AsNoTracking().FirstOrDefaultAsync(i => i.Id == Id);
+            company = await _db.CompanySettings.AsNoTracking().FirstOrDefaultAsync();
             if (invoice != null && !string.IsNullOrEmpty(invoice.ItemsJson))
             {
-                items = JsonSerializer.Deserialize<List<TempItem>>(invoice.ItemsJson) ?? new();
+                items = JsonSerializer.Deserialize<List<PrintItem>>(invoice.ItemsJson) ?? new();
             }
         }
-        finally
-        {
-            isLoading = false;
-        }
+        catch (Exception) { }
+        finally { isLoading = false; }
     }
 
-    private void GoBack()
+    private async Task PrintPage()
     {
-        NavManager.NavigateTo("/invoices");
+        await JSRuntime.InvokeVoidAsync("window.print");
     }
+
+    private void GoBack() => NavManager.NavigateTo("/invoices");
+
+    public void Dispose() => _db?.Dispose();
 }

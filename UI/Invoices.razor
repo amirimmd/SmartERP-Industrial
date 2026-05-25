@@ -21,6 +21,7 @@
         <div class="alert-error">@pageError</div>
     }
 
+    <!-- فیلترهای جستجو -->
     <div class="card" style="margin-bottom: 1.5rem; display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 1rem; padding: 1rem 1.5rem;">
         <div>
             <label style="font-size: 0.8rem; color: var(--text-muted); display: block; margin-bottom: 0.3rem;">جستجوی متن (شماره فاکتور، مشتری، راننده)</label>
@@ -41,6 +42,7 @@
         </div>
     </div>
 
+    <!-- جدول فاکتورها -->
     <div class="card" style="padding: 0; overflow-x: auto;">
         <table class="industrial-table" style="width: 100%; border-collapse: collapse;">
             <thead>
@@ -61,7 +63,7 @@
                 }
                 else if (!filteredInvoices.Any())
                 {
-                    <tr><td colspan="7" style="padding: 4rem; text-align: center; color: var(--text-muted);">سندی یافت نشد.</td></tr>
+                    <tr><td colspan="7" style="padding: 4rem; text-align: center; color: var(--text-muted);"><p>سندی با این مشخصات یافت نشد.</p></td></tr>
                 }
                 else
                 {
@@ -85,7 +87,9 @@
                                 else if (inv.Status == "در حال ارسال") { <span style="color: var(--primary-color); font-weight: bold;">@inv.Status</span> }
                                 else { <span style="color: var(--accent-color); font-weight: bold;">@inv.Status</span> }
                             </td>
-                            <td style="padding: 1rem; font-size: 0.85rem; color: var(--text-muted);">@(string.IsNullOrEmpty(inv.DriverName) ? "---" : $"{inv.DriverName} | {inv.VehiclePlate}")</td>
+                            <td style="padding: 1rem; font-size: 0.85rem; color: var(--text-muted);">
+                                @(string.IsNullOrEmpty(inv.DriverName) ? "---" : $"{inv.DriverName} | {inv.VehiclePlate}")
+                            </td>
                             <td style="padding: 1rem; font-size: 0.8rem; color: var(--text-muted);">@inv.PaymentMethod</td>
                             <td style="padding: 1rem; font-family: var(--font-en); color: var(--success); font-weight: bold;">@inv.FinalAmount.ToString("N0")</td>
                             <td style="padding: 1rem; text-align: center;">
@@ -103,6 +107,7 @@
     </div>
 </div>
 
+<!-- Modal صدور فاکتور -->
 @if (isModalOpen)
 {
     <div style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background-color: rgba(9,9,11,0.92); z-index: 200; display: flex; align-items: center; justify-content: center;" @onclick="CloseModalOnBackdrop">
@@ -117,6 +122,7 @@
                 <div class="alert-error">@modalError</div>
             }
 
+            <!-- اطلاعات پایه -->
             <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
                 <div>
                     <label style="display: block; margin-bottom: 0.3rem; color: var(--text-muted); font-size: 0.85rem;">نام خریدار / شرکت *</label>
@@ -148,7 +154,7 @@
                 <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 0.75rem; font-weight: bold;">انتخاب کالا از انبار:</p>
                 @if (!availableProducts.Any())
                 {
-                    <p style="color: var(--danger); font-size: 0.85rem; margin-bottom: 0.5rem;">هیچ محصولی با موجودی مثبت یافت نشد.</p>
+                    <p style="color: var(--danger); font-size: 0.85rem; margin-bottom: 0.5rem;">هیچ محصولی با موجودی مثبت یافت نشد. ابتدا انبار را شارژ کنید.</p>
                 }
                 <div style="display: flex; gap: 1rem; align-items: flex-end;">
                     <div style="flex-grow: 1;">
@@ -171,6 +177,7 @@
                 }
             </div>
 
+            <!-- آیتم‌های فاکتور -->
             @if (invoiceItems.Any())
             {
                 <table style="width: 100%; border-collapse: collapse; margin-bottom: 1rem; font-size: 0.9rem;">
@@ -191,7 +198,9 @@
                                 <td style="text-align: center; padding: 0.5rem; font-family: var(--font-en);">@item.Quantity</td>
                                 <td style="text-align: right; padding: 0.5rem; font-family: var(--font-en); color: var(--text-muted);">@item.UnitPrice.ToString("N0")</td>
                                 <td style="text-align: right; padding: 0.5rem; font-family: var(--font-en); color: var(--primary-color); font-weight: bold;">@((item.UnitPrice * (decimal)item.Quantity).ToString("N0"))</td>
-                                <td style="text-align: center; padding: 0.5rem;"><button style="background: none; border: none; color: var(--danger); cursor: pointer;" @onclick="() => RemoveItem(item)">✕</button></td>
+                                <td style="text-align: center; padding: 0.5rem;">
+                                    <button style="background: none; border: none; color: var(--danger); cursor: pointer;" @onclick="() => RemoveItem(item)">✕</button>
+                                </td>
                             </tr>
                         }
                     </tbody>
@@ -205,7 +214,7 @@
                 <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
                     <div>
                         <label style="display: block; margin-bottom: 0.3rem; color: var(--text-muted); font-size: 0.8rem;">جمع کل اقلام (ریال)</label>
-                        <input readonly value="@newInvoice.TotalAmount.ToString("N0")" class="input-field" style="margin-bottom: 0; font-family: var(--font-en); background: var(--surface-color);" />
+                        <input readonly value="@newInvoice.TotalAmount.ToString("N0")" class="input-field" style="margin-bottom: 0; font-family: var(--font-en); background: var(--surface-color); color: var(--text-main);" />
                     </div>
                     <div>
                         <label style="display: block; margin-bottom: 0.3rem; color: var(--text-muted); font-size: 0.8rem;">تخفیف (ریال)</label>
@@ -222,7 +231,8 @@
                     <span class="industrial-num" style="font-size: 1.3rem; color: var(--success);">@newInvoice.FinalAmount.ToString("N0") ریال</span>
                 </div>
 
-                <div style="display: grid; grid-template-columns: @(newInvoice.PaymentMethod == "ترکیبی" ? "1fr 1fr" : "1fr 2fr"); gap: 1rem; margin-bottom: @(newInvoice.PaymentMethod != "نقدی" ? "1rem" : "0");">
+                <!-- نوع پرداخت -->
+                <div style="display: grid; grid-template-columns: 1fr @(newInvoice.PaymentMethod == "ترکیبی" ? "1fr" : "2fr"); gap: 1rem; margin-bottom: @(newInvoice.PaymentMethod != "نقدی" ? "1rem" : "0");">
                     <div>
                         <label style="display: block; margin-bottom: 0.3rem; color: var(--text-muted); font-size: 0.8rem;">نحوه تسویه حساب</label>
                         <select value="@newInvoice.PaymentMethod" @onchange="OnPaymentMethodChanged" class="input-field" style="margin-bottom: 0; border-color: var(--primary-color);">
@@ -263,7 +273,7 @@
                 }
             </div>
 
-            <div style="display: flex; gap: 1rem;">
+            <div style="display: flex; gap: 1rem; margin-top: 0.5rem;">
                 <button class="btn-primary" style="flex: 1;" @onclick="SaveInvoice" disabled="@(!invoiceItems.Any() || isSaving)">
                     @if (isSaving) { <span>در حال ثبت...</span> } else { <span>ثبت در سیستم</span> }
                 </button>
@@ -273,6 +283,7 @@
     </div>
 }
 
+<!-- Modal وضعیت و لجستیک -->
 @if (isDispatchModalOpen)
 {
     <div style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background-color: rgba(9,9,11,0.92); z-index: 200; display: flex; align-items: center; justify-content: center;">
@@ -301,7 +312,7 @@
                 <h3 style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 0.75rem; font-weight: bold;">اطلاعات راننده / باربری</h3>
                 <input type="text" @bind="activeInvoice.DriverName" class="input-field" placeholder="نام راننده / باربری" />
                 <input type="text" @bind="activeInvoice.DriverPhone" class="input-field" placeholder="موبایل راننده" style="font-family: var(--font-en); direction: ltr;" />
-                <input type="text" @bind="activeInvoice.VehiclePlate" class="input-field" placeholder="پلاک خودرو" style="margin-bottom: 0;" />
+                <input type="text" @bind="activeInvoice.VehiclePlate" class="input-field" placeholder="پلاک خودرو (مثال: 12ج456-11)" style="margin-bottom: 0;" />
             </div>
 
             <div style="display: flex; gap: 1rem;">
@@ -345,8 +356,12 @@
     protected override async Task OnInitializedAsync()
     {
         _db = await DbFactory.CreateDbContextAsync();
-        var setting = await _db.CompanySettings.AsNoTracking().FirstOrDefaultAsync();
-        if (setting != null) defaultTaxRate = setting.DefaultTaxRate;
+        try
+        {
+            var setting = await _db.CompanySettings.AsNoTracking().FirstOrDefaultAsync();
+            if (setting != null) defaultTaxRate = setting.DefaultTaxRate;
+        }
+        catch { /* از نرخ پیش‌فرض ۹٪ استفاده می‌شود */ }
         await LoadAllData();
     }
 
@@ -356,8 +371,15 @@
         pageError = "";
         try
         {
-            invoices = await _db.Invoices.AsNoTracking().OrderByDescending(i => i.Id).ToListAsync();
-            availableProducts = await _db.Products.AsNoTracking().Where(p => p.StockQuantity > 0).OrderBy(p => p.Name).ToListAsync();
+            invoices = await _db.Invoices.AsNoTracking()
+                .OrderByDescending(i => i.Id)
+                .ToListAsync();
+
+            availableProducts = await _db.Products.AsNoTracking()
+                .Where(p => p.StockQuantity > 0)
+                .OrderBy(p => p.Name)
+                .ToListAsync();
+
             ApplyFilter();
         }
         catch (Exception ex) { pageError = $"خطا در بارگذاری: {ex.Message}"; }
@@ -371,15 +393,24 @@
         if (!string.IsNullOrWhiteSpace(searchQuery))
         {
             var s = searchQuery.ToLower();
-            q = q.Where(i => (i.InvoiceNumber != null && i.InvoiceNumber.ToLower().Contains(s)) || (i.CustomerName != null && i.CustomerName.ToLower().Contains(s)) || (i.DriverName != null && i.DriverName.ToLower().Contains(s)));
+            q = q.Where(i =>
+                (i.InvoiceNumber != null && i.InvoiceNumber.ToLower().Contains(s)) ||
+                (i.CustomerName != null && i.CustomerName.ToLower().Contains(s)) ||
+                (i.DriverName != null && i.DriverName.ToLower().Contains(s)));
         }
         filteredInvoices = q.ToList();
     }
 
-    // SYNCHRONOUS - هیچ await ندارد - دکمه فوری واکنش می‌دهد
     private void OpenAddModal()
     {
-        newInvoice = new Invoice { InvoiceNumber = "INV-" + DateTime.Now.ToString("MMddHHmm"), InvoiceDate = DateTime.Now, Status = "ثبت اولیه", InvoiceType = "پیش‌فاکتور", PaymentMethod = "نقدی" };
+        newInvoice = new Invoice
+        {
+            InvoiceNumber = "INV-" + DateTime.Now.ToString("MMddHHmm"),
+            InvoiceDate = DateTime.Now,
+            Status = "ثبت اولیه",
+            InvoiceType = "پیش‌فاکتور",
+            PaymentMethod = "نقدی"
+        };
         invoiceItems = new();
         itemError = "";
         modalError = "";
@@ -398,19 +429,30 @@
         var product = availableProducts.FirstOrDefault(p => p.Id == selectedProductId);
         if (product == null) return;
         if (quantityToAdd <= 0) { itemError = "تعداد باید بیشتر از صفر باشد."; return; }
+
         var alreadyAdded = invoiceItems.Where(i => i.ProductId == selectedProductId).Sum(i => i.Quantity);
-        if (alreadyAdded + quantityToAdd > product.StockQuantity) { itemError = $"موجودی انبار کافی نیست! حداکثر {product.StockQuantity - alreadyAdded} {product.Unit}"; return; }
+        if (alreadyAdded + quantityToAdd > product.StockQuantity)
+        {
+            itemError = $"موجودی انبار کافی نیست! حداکثر {product.StockQuantity - alreadyAdded} {product.Unit} قابل ثبت است.";
+            return;
+        }
+
         invoiceItems.Add(new TempInvoiceItem(product.Id, product.Name, quantityToAdd, product.Price));
         CalculateTotals();
         selectedProductId = 0;
         quantityToAdd = 1;
     }
 
-    private void RemoveItem(TempInvoiceItem item) { invoiceItems.Remove(item); CalculateTotals(); }
+    private void RemoveItem(TempInvoiceItem item)
+    {
+        invoiceItems.Remove(item);
+        CalculateTotals();
+    }
 
     private void OnDiscountInput(ChangeEventArgs e)
     {
-        if (decimal.TryParse(e.Value?.ToString(), out var val)) newInvoice.Discount = Math.Max(0, val);
+        if (decimal.TryParse(e.Value?.ToString(), out var val))
+            newInvoice.Discount = Math.Max(0, val);
         CalculateTotals();
     }
 
@@ -426,36 +468,79 @@
         var afterDiscount = Math.Max(0, newInvoice.TotalAmount - newInvoice.Discount);
         newInvoice.Tax = Math.Round(afterDiscount * defaultTaxRate, 0);
         newInvoice.FinalAmount = afterDiscount + newInvoice.Tax;
-        if (newInvoice.PaymentMethod == "نقدی") { newInvoice.CashAmount = newInvoice.FinalAmount; newInvoice.CheckAmount = 0; }
-        else if (newInvoice.PaymentMethod == "چکی") { newInvoice.CashAmount = 0; newInvoice.CheckAmount = newInvoice.FinalAmount; }
+
+        if (newInvoice.PaymentMethod == "نقدی")
+        {
+            newInvoice.CashAmount = newInvoice.FinalAmount;
+            newInvoice.CheckAmount = 0;
+        }
+        else if (newInvoice.PaymentMethod == "چکی")
+        {
+            newInvoice.CashAmount = 0;
+            newInvoice.CheckAmount = newInvoice.FinalAmount;
+        }
     }
 
     private async Task SaveInvoice()
     {
-        if (string.IsNullOrWhiteSpace(newInvoice.CustomerName)) { modalError = "لطفاً نام خریدار را وارد کنید."; return; }
-        if (!invoiceItems.Any()) { modalError = "حداقل یک کالا باید اضافه شود."; return; }
+        if (string.IsNullOrWhiteSpace(newInvoice.CustomerName))
+        {
+            modalError = "لطفاً نام خریدار را وارد کنید.";
+            return;
+        }
+        if (!invoiceItems.Any())
+        {
+            modalError = "حداقل یک کالا باید به فاکتور اضافه شود.";
+            return;
+        }
+
         isSaving = true;
         modalError = "";
         try
         {
             await using var saveDb = await DbFactory.CreateDbContextAsync();
+
             if (newInvoice.PaymentMethod == "چکی" || newInvoice.PaymentMethod == "ترکیبی")
+            {
                 newInvoice.CheckDetails = $"ش.صیاد: {newInvoice.CheckNumber} | {newInvoice.CheckBankName} | سررسید: {newInvoice.CheckDueDate?.ToString("yyyy/MM/dd") ?? "---"}";
+            }
+
             newInvoice.ItemsJson = JsonSerializer.Serialize(invoiceItems);
             saveDb.Invoices.Add(newInvoice);
+
             foreach (var item in invoiceItems)
             {
                 var dbProduct = await saveDb.Products.FindAsync(item.ProductId);
-                if (dbProduct != null) dbProduct.StockQuantity -= item.Quantity;
+                if (dbProduct != null)
+                    dbProduct.StockQuantity -= item.Quantity;
             }
-            // CRM auto-save
+
             if (!string.IsNullOrWhiteSpace(newInvoice.CustomerPhone))
             {
-                var existing = await saveDb.Customers.FirstOrDefaultAsync(c => c.PhoneNumber == newInvoice.CustomerPhone);
+                var existing = await saveDb.Customers
+                    .FirstOrDefaultAsync(c => c.PhoneNumber == newInvoice.CustomerPhone);
                 if (existing == null)
-                    saveDb.Customers.Add(new Customer { FullName = newInvoice.CustomerName, PhoneNumber = newInvoice.CustomerPhone, RegisterDate = DateTime.Now, LastPurchaseDate = DateTime.Now, TotalPurchaseAmount = newInvoice.FinalAmount, TotalInvoiceCount = 1, IsActive = true });
-                else { existing.FullName = newInvoice.CustomerName; existing.TotalPurchaseAmount += newInvoice.FinalAmount; existing.TotalInvoiceCount++; existing.LastPurchaseDate = DateTime.Now; }
+                {
+                    saveDb.Customers.Add(new Customer
+                    {
+                        FullName = newInvoice.CustomerName,
+                        PhoneNumber = newInvoice.CustomerPhone,
+                        RegisterDate = DateTime.Now,
+                        LastPurchaseDate = DateTime.Now,
+                        TotalPurchaseAmount = newInvoice.FinalAmount,
+                        TotalInvoiceCount = 1,
+                        IsActive = true
+                    });
+                }
+                else
+                {
+                    existing.FullName = newInvoice.CustomerName;
+                    existing.TotalPurchaseAmount += newInvoice.FinalAmount;
+                    existing.TotalInvoiceCount++;
+                    existing.LastPurchaseDate = DateTime.Now;
+                }
             }
+
             await saveDb.SaveChangesAsync();
             await RefreshData();
             CloseModal();
@@ -466,7 +551,16 @@
 
     private void OpenDispatchModal(Invoice inv)
     {
-        activeInvoice = new Invoice { Id = inv.Id, InvoiceNumber = inv.InvoiceNumber, CustomerName = inv.CustomerName, Status = inv.Status, DriverName = inv.DriverName ?? "", DriverPhone = inv.DriverPhone ?? "", VehiclePlate = inv.VehiclePlate ?? "" };
+        activeInvoice = new Invoice
+        {
+            Id = inv.Id,
+            InvoiceNumber = inv.InvoiceNumber,
+            CustomerName = inv.CustomerName,
+            Status = inv.Status,
+            DriverName = inv.DriverName ?? "",
+            DriverPhone = inv.DriverPhone ?? "",
+            VehiclePlate = inv.VehiclePlate ?? ""
+        };
         dispatchError = "";
         isDispatchModalOpen = true;
     }
@@ -485,14 +579,16 @@
                 dbInvoice.DriverName = activeInvoice.DriverName;
                 dbInvoice.DriverPhone = activeInvoice.DriverPhone;
                 dbInvoice.VehiclePlate = activeInvoice.VehiclePlate;
-                if (activeInvoice.Status == "در حال ارسال" && !dbInvoice.DispatchDate.HasValue) dbInvoice.DispatchDate = DateTime.Now;
-                if (activeInvoice.Status == "تحویل شده" && !dbInvoice.DeliveryDate.HasValue) dbInvoice.DeliveryDate = DateTime.Now;
+                if (activeInvoice.Status == "در حال ارسال" && !dbInvoice.DispatchDate.HasValue)
+                    dbInvoice.DispatchDate = DateTime.Now;
+                if (activeInvoice.Status == "تحویل شده" && !dbInvoice.DeliveryDate.HasValue)
+                    dbInvoice.DeliveryDate = DateTime.Now;
                 await saveDb.SaveChangesAsync();
             }
             await RefreshData();
             isDispatchModalOpen = false;
         }
-        catch (Exception ex) { dispatchError = $"خطا: {ex.Message}"; }
+        catch (Exception ex) { dispatchError = $"خطا در به‌روزرسانی: {ex.Message}"; }
         finally { isSaving = false; }
     }
 
@@ -520,7 +616,7 @@
             ApplyFilter();
             StateHasChanged();
         }
-        catch (Exception ex) { pageError = $"خطا: {ex.Message}"; }
+        catch (Exception ex) { pageError = $"خطا در به‌روزرسانی لیست: {ex.Message}"; }
     }
 
     public void Dispose() => _db?.Dispose();
