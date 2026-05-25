@@ -340,9 +340,15 @@
         filteredCustomers = q.ToList();
     }
 
-    private void OpenAddModal() { editingCustomer = new Customer { IsActive = true }; modalError = ""; isModalOpen = true; }
+    private async Task OpenAddModal()
+    {
+        editingCustomer = new Customer { IsActive = true, CustomerType = "خریدار عادی" };
+        modalError = "";
+        isModalOpen = true;
+        await InvokeAsync(StateHasChanged);
+    }
 
-    private void OpenEditModal(Customer c)
+    private async Task OpenEditModal(Customer c)
     {
         editingCustomer = new Customer
         {
@@ -355,6 +361,7 @@
         };
         modalError = "";
         isModalOpen = true;
+        await InvokeAsync(StateHasChanged);
     }
 
     private void CloseModal() { isModalOpen = false; modalError = ""; }
@@ -391,14 +398,17 @@
     private async Task ViewHistory(Customer c)
     {
         historyCustomer = c;
-        // جستجو بر اساس CustomerId، تلفن و نام (به ترتیب دقت)
+        customerInvoices = new();
+        isHistoryOpen = true;
+        await InvokeAsync(StateHasChanged);
+
         customerInvoices = await _db.Invoices.AsNoTracking()
             .Where(i => i.CustomerId == c.Id ||
                         (!string.IsNullOrEmpty(c.PhoneNumber) && i.CustomerPhone == c.PhoneNumber) ||
                         i.CustomerName == c.FullName)
             .OrderByDescending(i => i.Id)
             .ToListAsync();
-        isHistoryOpen = true;
+        await InvokeAsync(StateHasChanged);
     }
 
     private string FormatNumber(decimal n)

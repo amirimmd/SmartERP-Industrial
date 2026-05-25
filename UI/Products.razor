@@ -195,13 +195,20 @@
             (p.Code != null && p.Code.ToLower().Contains(q))).ToList();
     }
 
-    private void OpenAddModal() { editingProduct = new Product { Unit = "عدد" }; modalError = ""; isModalOpen = true; }
+    private async Task OpenAddModal()
+    {
+        editingProduct = new Product { Unit = "عدد" };
+        modalError = "";
+        isModalOpen = true;
+        await InvokeAsync(StateHasChanged);
+    }
 
-    private void OpenEditModal(Product p)
+    private async Task OpenEditModal(Product p)
     {
         editingProduct = new Product { Id = p.Id, Code = p.Code, Name = p.Name, Price = p.Price, StockQuantity = p.StockQuantity, Unit = p.Unit };
         modalError = "";
         isModalOpen = true;
+        await InvokeAsync(StateHasChanged);
     }
 
     private void CloseModal() { isModalOpen = false; modalError = ""; }

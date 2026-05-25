@@ -232,7 +232,7 @@
         filteredLetters = q.ToList();
     }
 
-    private void OpenAddModal()
+    private async Task OpenAddModal()
     {
         editingLetter = new OfficialLetter
         {
@@ -243,9 +243,10 @@
         viewOnly = false;
         modalError = "";
         isModalOpen = true;
+        await InvokeAsync(StateHasChanged);
     }
 
-    private void ViewLetter(OfficialLetter l)
+    private async Task ViewLetter(OfficialLetter l)
     {
         editingLetter = new OfficialLetter
         {
@@ -254,6 +255,7 @@
         };
         viewOnly = true;
         isModalOpen = true;
+        await InvokeAsync(StateHasChanged);
     }
 
     private void SwitchToEdit() { viewOnly = false; }

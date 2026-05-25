@@ -14,5 +14,14 @@
 <body>
     <Routes />
     <script src="_framework/blazor.webview.js" autostart="false"></script>
+    <script>
+        // WebView2 در MAUI اولین کلیک را برای focus مصرف می‌کند؛ این اسکریپت focus را از پیش می‌دهد
+        window.addEventListener('load', function () {
+            document.body.setAttribute('tabindex', '-1');
+            document.body.focus();
+            document.body.removeAttribute('tabindex');
+            document.documentElement.addEventListener('click', function () { }, true);
+        });
+    </script>
 </body>
 </html>

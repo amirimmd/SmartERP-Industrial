@@ -191,18 +191,20 @@
     private void SetFilter(string status) { filterStatus = status; ApplyFilter(); }
     private void ApplyFilter() { filteredOrders = filterStatus == "همه" ? orders.ToList() : orders.Where(o => o.Status == filterStatus).ToList(); }
 
-    private void OpenAddModal()
+    private async Task OpenAddModal()
     {
         editingOrder = new Order { OrderNumber = "ORD-" + DateTime.Now.ToString("MMddHHmm"), OrderDate = DateTime.Now, ExpectedDelivery = DateTime.Now.AddDays(7), Status = "در انتظار بررسی", ItemsJson = "" };
         modalError = "";
         isModalOpen = true;
+        await InvokeAsync(StateHasChanged);
     }
 
-    private void OpenEditModal(Order o)
+    private async Task OpenEditModal(Order o)
     {
         editingOrder = new Order { Id = o.Id, OrderNumber = o.OrderNumber, CustomerName = o.CustomerName, OrderDate = o.OrderDate, ExpectedDelivery = o.ExpectedDelivery, Status = o.Status, ItemsJson = o.ItemsJson, TotalAmount = o.TotalAmount };
         modalError = "";
         isModalOpen = true;
+        await InvokeAsync(StateHasChanged);
     }
 
     private void CloseModal() { isModalOpen = false; modalError = ""; }

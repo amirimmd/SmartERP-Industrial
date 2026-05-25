@@ -497,10 +497,10 @@
 
     private async Task OpenAddModal()
     {
-        await Task.Yield();
+        // modal را فوری نمایش بده - داده‌های async بعداً بارگذاری می‌شوند
         newInvoice = new Invoice
         {
-            InvoiceNumber = await GenerateInvoiceNumber(),
+            InvoiceNumber = "F-" + DateTime.Now.ToString("yyMMddHHmm"),
             InvoiceDate = DateTime.Now,
             Status = "ثبت اولیه",
             InvoiceType = "پیش‌فاکتور",
@@ -513,19 +513,21 @@
         quantityToAdd = 1;
         showCustomerSuggestions = false;
         customerSuggestions.Clear();
+        isModalOpen = true;
+        await InvokeAsync(StateHasChanged);
 
-        // بارگذاری مشتریان CRM برای autocomplete
+        // بارگذاری شماره فاکتور و لیست مشتریان CRM بعد از نمایش modal
         try
         {
+            var count = (await _db.Invoices.CountAsync()) + 1;
+            newInvoice.InvoiceNumber = $"F-{count:D5}";
             crmCustomers = await _db.Customers.AsNoTracking()
                 .Where(c => c.IsActive)
                 .OrderByDescending(c => c.LastPurchaseDate ?? c.RegisterDate)
                 .ToListAsync();
+            await InvokeAsync(StateHasChanged);
         }
         catch { crmCustomers = new List<Customer>(); }
-
-        isModalOpen = true;
-        await InvokeAsync(StateHasChanged);
     }
 
     private async Task<string> GenerateInvoiceNumber()
