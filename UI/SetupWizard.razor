@@ -3,7 +3,7 @@
 @using SmartERP.Infrastructure
 @using Microsoft.EntityFrameworkCore
 @using Microsoft.AspNetCore.Components.Forms
-@inject AppDbContext DbContext
+@inject IDbContextFactory<AppDbContext> DbFactory
 @inject NavigationManager NavManager
 
 <style>
@@ -12,257 +12,156 @@
         display: flex;
         align-items: center;
         justify-content: center;
-        background: linear-gradient(135deg, #f0f4f8 0%, #d9e2ec 100%);
+        background: var(--bg-color);
         padding: 2rem;
     }
-
     .setup-card {
-        background: rgba(255, 255, 255, 0.95);
-        backdrop-filter: blur(10px);
-        border-radius: 24px;
-        box-shadow: 0 20px 40px rgba(0,0,0,0.08);
+        background: var(--surface-color);
+        border: 1px solid var(--border-color);
+        border-top: 3px solid var(--primary-color);
+        border-radius: var(--radius-lg);
         padding: 3rem;
         width: 100%;
         max-width: 600px;
-        border: 1px solid rgba(255,255,255,0.5);
     }
-
     .setup-header {
         text-align: center;
         margin-bottom: 2.5rem;
     }
-
     .setup-header h1 {
-        color: #102a43;
+        color: var(--primary-color);
         font-size: 1.8rem;
         font-weight: 800;
         margin-bottom: 0.5rem;
+        font-family: var(--font-en);
+        letter-spacing: 2px;
     }
-
     .setup-header p {
-        color: #627d98;
+        color: var(--text-muted);
         font-size: 0.95rem;
-    }
-
-    .form-group {
-        margin-bottom: 1.5rem;
-    }
-
-    .form-label {
-        display: block;
-        margin-bottom: 0.5rem;
-        color: #334e68;
-        font-weight: 600;
-        font-size: 0.9rem;
-    }
-
-    .form-control {
-        width: 100%;
-        padding: 0.85rem 1rem;
-        border: 2px solid #e4e7eb;
-        border-radius: 12px;
-        font-family: inherit;
-        font-size: 1rem;
-        transition: all 0.3s ease;
-        background: #f8fafc;
-    }
-
-    .form-control:focus {
-        outline: none;
-        border-color: #2563eb;
-        box-shadow: 0 0 0 4px rgba(37,99,235,0.1);
-        background: #ffffff;
-    }
-
-    .logo-upload-box {
-        border: 2px dashed #cbd5e1;
-        border-radius: 16px;
-        padding: 2rem;
-        text-align: center;
-        cursor: pointer;
-        transition: all 0.3s ease;
-        position: relative;
-        background: #f8fafc;
-    }
-
-    .logo-upload-box:hover {
-        border-color: #2563eb;
-        background: #f1f5f9;
-    }
-
-    .logo-preview {
-        max-width: 150px;
-        max-height: 150px;
-        border-radius: 12px;
-        margin-top: 1rem;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-    }
-
-    .btn-submit {
-        width: 100%;
-        padding: 1rem;
-        background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
-        color: white;
-        border: none;
-        border-radius: 12px;
-        font-size: 1.1rem;
-        font-weight: 700;
-        cursor: pointer;
-        transition: transform 0.2s, box-shadow 0.2s;
-        margin-top: 1rem;
-    }
-
-    .btn-submit:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 10px 20px rgba(37,99,235,0.2);
-    }
-
-    .error-msg {
-        background: #fee2e2;
-        color: #ef4444;
-        padding: 1rem;
-        border-radius: 12px;
-        margin-bottom: 1.5rem;
-        font-size: 0.9rem;
-        display: flex;
-        align-items: center;
-        gap: 0.5rem;
     }
 </style>
 
 <div class="setup-wrapper">
     <div class="setup-card">
         <div class="setup-header">
-            <h1>تنظیمات اولیه سیستم</h1>
-            <p>لطفاً اطلاعات مجموعه خود را برای شخصی‌سازی نرم‌افزار وارد کنید.</p>
+            <h1>SMART<span style="color: var(--text-main);">ERP</span></h1>
+            <p>اطلاعات اولیه مجموعه را برای شخصی‌سازی سیستم وارد کنید.</p>
         </div>
 
-        @if (!string.IsNullOrEmpty(ErrorMessage))
+        @if (!string.IsNullOrEmpty(errorMessage))
         {
-            <div class="error-msg">
-                <span>⚠️</span> @ErrorMessage
-            </div>
+            <div class="alert-error">@errorMessage</div>
         }
 
         @if (isLoading)
         {
             <div style="text-align:center; padding: 2rem;">
-                <div class="loader-pulse-ring" style="position:relative; margin: 0 auto;"></div>
-                <p style="margin-top:1rem; color:#6b7280;">در حال ذخیره‌سازی و پیکربندی...</p>
+                <div class="loader-pulse-ring" style="margin: 0 auto;"></div>
+                <p style="margin-top:1rem; color: var(--text-muted);">در حال ذخیره‌سازی...</p>
             </div>
         }
         else
         {
-            <div class="form-group">
-                <label class="form-label">نام شرکت / مجموعه</label>
-                <input type="text" class="form-control" @bind="setting.CompanyName" placeholder="مثال: گروه صنعتی مشعوف" />
+            <div style="margin-bottom: 1rem;">
+                <label style="display: block; margin-bottom: 0.4rem; color: var(--text-muted); font-size: 0.85rem;">نام شرکت / مجموعه *</label>
+                <input type="text" class="input-field" @bind="setting.CompanyName" placeholder="مثال: گروه صنعتی مشعوف" />
             </div>
 
-            <div class="form-group">
-                <label class="form-label">نام مدیریت</label>
-                <input type="text" class="form-control" @bind="setting.ManagerName" placeholder="مثال: حسام مشعوف" />
+            <div style="margin-bottom: 1rem;">
+                <label style="display: block; margin-bottom: 0.4rem; color: var(--text-muted); font-size: 0.85rem;">نام مدیریت</label>
+                <input type="text" class="input-field" @bind="setting.ManagerName" />
             </div>
 
-            <div class="form-group">
-                <label class="form-label">آدرس</label>
-                <textarea class="form-control" @bind="setting.Address" rows="2" placeholder="آدرس کامل جهت درج در فاکتور"></textarea>
+            <div style="margin-bottom: 1rem;">
+                <label style="display: block; margin-bottom: 0.4rem; color: var(--text-muted); font-size: 0.85rem;">شماره تماس</label>
+                <input type="text" class="input-field" @bind="setting.PhoneNumber" style="font-family: var(--font-en); direction: ltr;" />
             </div>
 
-            <div class="form-group">
-                <label class="form-label">لوگوی مجموعه (فرمت PNG یا JPG - حداکثر ۲ مگابایت)</label>
-                <div class="logo-upload-box" onclick="document.getElementById('logoInput').click()">
-                    @if (string.IsNullOrEmpty(setting.LogoPath) || setting.LogoPath.EndsWith("default-logo.png"))
+            <div style="margin-bottom: 1.5rem;">
+                <label style="display: block; margin-bottom: 0.4rem; color: var(--text-muted); font-size: 0.85rem;">آدرس</label>
+                <textarea class="input-field" @bind="setting.Address" rows="2" style="height: auto; resize: none; margin-bottom: 0;" placeholder="آدرس کامل جهت درج در فاکتور"></textarea>
+            </div>
+
+            <div style="margin-bottom: 2rem;">
+                <label style="display: block; margin-bottom: 0.4rem; color: var(--text-muted); font-size: 0.85rem;">لوگوی مجموعه (PNG یا JPG — حداکثر ۲ مگابایت)</label>
+                <div onclick="document.getElementById('logoInputSetup').click()"
+                     style="border: 2px dashed var(--border-color); border-radius: var(--radius-md); padding: 1.5rem; text-align: center; cursor: pointer; background: var(--bg-color);">
+                    @if (string.IsNullOrEmpty(setting.LogoPath) || setting.LogoPath == "/images/default-logo.png")
                     {
-                        <div style="font-size: 2rem; color: #94a3b8; margin-bottom: 0.5rem;">📸</div>
-                        <p style="color: #64748b; font-size: 0.9rem;">برای انتخاب لوگو کلیک کنید</p>
+                        <div style="font-size: 2rem; color: var(--text-muted); margin-bottom: 0.5rem;">📷</div>
+                        <p style="color: var(--text-muted); font-size: 0.85rem; margin: 0;">برای انتخاب لوگو کلیک کنید</p>
                     }
                     else
                     {
-                        <img src="@setting.LogoPath" class="logo-preview" alt="Logo Preview" />
-                        <p style="color: #2563eb; font-size: 0.8rem; margin-top: 0.5rem;">برای تغییر کلیک کنید</p>
+                        <img src="@setting.LogoPath" style="max-width: 150px; max-height: 100px; object-fit: contain;" alt="Logo" />
+                        <p style="color: var(--primary-color); font-size: 0.8rem; margin: 0.5rem 0 0;">برای تغییر کلیک کنید</p>
                     }
-                    <InputFile id="logoInput" style="display: none;" OnChange="HandleLogoUpload" accept="image/png, image/jpeg" />
+                    <InputFile id="logoInputSetup" style="display: none;" OnChange="HandleLogoUpload" accept="image/png,image/jpeg" />
                 </div>
             </div>
 
-            <button class="btn-submit" @onclick="SaveConfiguration">ثبت و ورود به سیستم</button>
+            <button class="btn-primary" style="width: 100%; padding: 0.85rem;" @onclick="SaveConfiguration">
+                ثبت و ورود به سیستم
+            </button>
         }
     </div>
 </div>
 
 @code {
-    private CompanySetting setting = new();
+    private CompanySetting setting = new() { Id = 1 };
     private bool isLoading = false;
-    private string ErrorMessage = string.Empty;
-
-    private const long MaxFileSize = 2 * 1024 * 1024; 
+    private string errorMessage = string.Empty;
 
     protected override async Task OnInitializedAsync()
     {
-        var existingSetting = await DbContext.CompanySettings.FirstOrDefaultAsync();
-        if (existingSetting != null)
-        {
-            setting = existingSetting;
-        }
+        await using var db = await DbFactory.CreateDbContextAsync();
+        var existing = await db.CompanySettings.AsNoTracking().FirstOrDefaultAsync();
+        if (existing != null)
+            setting = existing;
     }
 
     private async Task HandleLogoUpload(InputFileChangeEventArgs e)
     {
-        ErrorMessage = string.Empty;
+        errorMessage = string.Empty;
         var file = e.File;
-
-        if (file.Size > MaxFileSize)
-        {
-            ErrorMessage = "حجم لوگو نباید بیشتر از ۲ مگابایت باشد.";
-            return;
-        }
-
-        if (file.ContentType != "image/png" && file.ContentType != "image/jpeg")
-        {
-            ErrorMessage = "لطفاً فقط فایل با فرمت PNG یا JPG انتخاب کنید.";
-            return;
-        }
-
+        if (file.Size > 2 * 1024 * 1024) { errorMessage = "حجم لوگو نباید بیشتر از ۲ مگابایت باشد."; return; }
         try
         {
             var buffer = new byte[file.Size];
-            using var stream = file.OpenReadStream(MaxFileSize);
+            using var stream = file.OpenReadStream(2 * 1024 * 1024);
             await stream.ReadAsync(buffer);
-            
-            var base64 = Convert.ToBase64String(buffer);
-            setting.LogoPath = $"data:{file.ContentType};base64,{base64}";
+            setting.LogoPath = $"data:{file.ContentType};base64,{Convert.ToBase64String(buffer)}";
         }
-        catch (Exception)
-        {
-            ErrorMessage = "خطا در پردازش تصویر. لطفاً تصویر دیگری امتحان کنید.";
-        }
+        catch { errorMessage = "خطا در پردازش تصویر."; }
     }
 
     private async Task SaveConfiguration()
     {
-        if (string.IsNullOrWhiteSpace(setting.CompanyName))
-        {
-            ErrorMessage = "لطفاً نام مجموعه را وارد کنید.";
-            return;
-        }
-
+        if (string.IsNullOrWhiteSpace(setting.CompanyName)) { errorMessage = "لطفاً نام مجموعه را وارد کنید."; return; }
         isLoading = true;
-        ErrorMessage = string.Empty;
-
+        errorMessage = string.Empty;
         try
         {
-            DbContext.CompanySettings.Update(setting);
-            await DbContext.SaveChangesAsync();
-            
+            await using var saveDb = await DbFactory.CreateDbContextAsync();
+            var existing = await saveDb.CompanySettings.FirstOrDefaultAsync();
+            if (existing == null)
+            {
+                setting.Id = 1;
+                saveDb.CompanySettings.Add(setting);
+            }
+            else
+            {
+                existing.CompanyName = setting.CompanyName;
+                existing.ManagerName = setting.ManagerName;
+                existing.Address = setting.Address;
+                existing.PhoneNumber = setting.PhoneNumber;
+                existing.LogoPath = setting.LogoPath;
+            }
+            await saveDb.SaveChangesAsync();
             NavManager.NavigateTo("/");
         }
-        catch (Exception)
-        {
-            ErrorMessage = "خطا در ذخیره‌سازی اطلاعات.";
-        }
-        finally
-        {
-            isLoading = false;
-        }
+        catch (Exception) { errorMessage = "خطا در ذخیره‌سازی اطلاعات."; }
+        finally { isLoading = false; }
     }
 }

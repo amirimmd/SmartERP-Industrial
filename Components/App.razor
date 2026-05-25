@@ -15,13 +15,20 @@
     <Routes />
     <script src="_framework/blazor.webview.js" autostart="false"></script>
     <script>
-        // WebView2 در MAUI اولین کلیک را برای focus مصرف می‌کند؛ این اسکریپت focus را از پیش می‌دهد
-        window.addEventListener('load', function () {
-            document.body.setAttribute('tabindex', '-1');
-            document.body.focus();
-            document.body.removeAttribute('tabindex');
-            document.documentElement.addEventListener('click', function () { }, true);
-        });
+        // WebView2 focus fix: اولین کلیک در MAUI WebView2 صرف focus می‌شود نه اجرای event
+        // با دادن focus برنامه‌ای، کلیک اول هم درست کار می‌کند
+        function ensureFocus() {
+            if (document.activeElement === document.body || document.activeElement === document.documentElement) {
+                document.body.setAttribute('tabindex', '-1');
+                document.body.focus();
+                document.body.removeAttribute('tabindex');
+            }
+        }
+        window.addEventListener('load', ensureFocus);
+        window.addEventListener('focus', ensureFocus);
+        // تضمین اجرا پس از اینکه Blazor Hybrid کاملاً راه‌اندازی شود
+        setTimeout(ensureFocus, 300);
+        setTimeout(ensureFocus, 800);
     </script>
 </body>
 </html>
