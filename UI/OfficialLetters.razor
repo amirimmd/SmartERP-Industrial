@@ -4,12 +4,13 @@
 @using Microsoft.EntityFrameworkCore
 @implements IDisposable
 @inject IDbContextFactory<AppDbContext> DbFactory
+@inject NavigationManager NavManager
 
 <div class="module-header">
     <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 2rem;">
         <div>
             <h1 style="color: var(--primary-color); font-weight: 800; font-size: 1.8rem; margin-bottom: 0.5rem;">دبیرخانه و نامه‌های رسمی</h1>
-            <p style="color: var(--text-muted); margin: 0; font-size: 0.95rem;">بایگانی نامه‌های اداری و استعلامات</p>
+            <p style="color: var(--text-muted); margin: 0; font-size: 0.95rem;">بایگانی نامه‌های اداری، استعلامات و مکاتبات</p>
         </div>
         <button class="btn-primary" @onclick="OpenAddModal">+ ایجاد نامه جدید</button>
     </div>
@@ -18,6 +19,34 @@
     {
         <div class="alert-error">@pageError</div>
     }
+
+    <!-- جستجو و فیلتر وضعیت -->
+    <div class="card" style="margin-bottom: 1.5rem; padding: 1rem 1.5rem;">
+        <div style="display: flex; gap: 1rem; align-items: center; margin-bottom: 0.75rem;">
+            <div style="flex-grow: 1;">
+                <input type="text" @bind="searchQuery" @bind:event="oninput"
+                       placeholder="جستجو (موضوع، گیرنده، شماره نامه)..."
+                       class="input-field" style="margin-bottom: 0;" />
+            </div>
+            <div style="color: var(--text-muted); font-size: 0.9rem; white-space: nowrap;">
+                <span style="font-family: var(--font-en); color: var(--primary-color);">@filteredLetters.Count</span> نامه
+            </div>
+        </div>
+        <!-- فیلتر وضعیت -->
+        <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+            @foreach (var status in new[] { "همه", "صادر شده", "در انتظار پاسخ", "پاسخ دریافت شد", "بایگانی" })
+            {
+                <button @onclick="() => SetStatusFilter(status)"
+                        style="padding: 0.3rem 0.75rem; border-radius: var(--radius-md); cursor: pointer; font-family: var(--font-fa); font-size: 0.82rem;
+                               background: @(filterStatus == status ? "var(--accent-color)" : "var(--bg-color)");
+                               color: @(filterStatus == status ? "#fff" : "var(--text-muted)");
+                               border: 1px solid @(filterStatus == status ? "var(--accent-color)" : "var(--border-color)");
+                               font-weight: @(filterStatus == status ? "bold" : "normal");">
+                    @status
+                </button>
+            }
+        </div>
+    </div>
 
     <div class="card" style="padding: 0; overflow-x: auto;">
         <table class="industrial-table" style="width: 100%; border-collapse: collapse;">
@@ -36,25 +65,38 @@
                 {
                     <tr><td colspan="6" style="padding: 3rem; text-align: center;"><div class="loader-pulse-ring" style="margin: 0 auto;"></div></td></tr>
                 }
-                else if (!letters.Any())
+                else if (!filteredLetters.Any())
                 {
-                    <tr><td colspan="6" style="padding: 4rem 2rem; text-align: center; color: var(--text-muted);">دبیرخانه خالی است. اولین نامه را ثبت کنید.</td></tr>
+                    <tr><td colspan="6" style="padding: 4rem 2rem; text-align: center; color: var(--text-muted);">نامه‌ای یافت نشد.</td></tr>
                 }
                 else
                 {
-                    @foreach (var l in letters)
+                    @foreach (var l in filteredLetters)
                     {
                         <tr class="table-row-hover">
                             <td style="padding: 1rem 1.5rem; font-family: var(--font-en); color: var(--primary-color); font-weight: bold;">@l.LetterNumber</td>
                             <td style="padding: 1rem 1.5rem; font-weight: bold;">@l.Subject</td>
-                            <td style="padding: 1rem 1.5rem; color: var(--text-muted);">@l.Recipient</td>
+                            <td style="padding: 1rem 1.5rem; color: var(--text-muted);">@(string.IsNullOrEmpty(l.Recipient) ? "---" : l.Recipient)</td>
                             <td style="padding: 1rem 1.5rem; font-size: 0.85rem;">
-                                <span style="background: rgba(59,130,246,0.1); color: var(--accent-color); padding: 0.2rem 0.5rem; border-radius: var(--radius-md);">@l.Status</span>
+                                @{
+                                    var badgeColor = l.Status switch
+                                    {
+                                        "صادر شده" => "rgba(59,130,246,0.15); color: var(--accent-color)",
+                                        "در انتظار پاسخ" => "rgba(245,158,11,0.15); color: var(--primary-color)",
+                                        "پاسخ دریافت شد" => "rgba(16,185,129,0.15); color: var(--success)",
+                                        "بایگانی" => "rgba(161,161,170,0.15); color: var(--text-muted)",
+                                        _ => "rgba(59,130,246,0.15); color: var(--accent-color)"
+                                    };
+                                }
+                                <span style="background: @badgeColor; padding: 0.2rem 0.6rem; border-radius: var(--radius-md);">@l.Status</span>
                             </td>
                             <td style="padding: 1rem 1.5rem; font-family: var(--font-en); color: var(--text-muted);">@l.IssueDate.ToString("yyyy/MM/dd")</td>
                             <td style="padding: 1rem 1.5rem; text-align: center;">
-                                <button style="background: var(--bg-color); border: 1px solid var(--border-color); color: var(--text-main); cursor: pointer; padding: 0.3rem 0.6rem; border-radius: var(--radius-md); font-weight: bold; margin-left: 0.5rem;" @onclick="() => ViewLetter(l)">مشاهده / چاپ</button>
-                                <button style="background: none; border: none; color: var(--danger); cursor: pointer; padding: 0.3rem;" @onclick="() => DeleteLetter(l.Id)">حذف</button>
+                                <div style="display: flex; gap: 0.4rem; justify-content: center;">
+                                    <button style="background: var(--bg-color); border: 1px solid var(--border-color); color: var(--text-main); cursor: pointer; padding: 0.3rem 0.6rem; border-radius: var(--radius-md); font-weight: bold; font-size: 0.8rem;" @onclick="() => ViewLetter(l)">مشاهده</button>
+                                    <button style="background: var(--primary-color); border: none; color: #000; cursor: pointer; padding: 0.3rem 0.6rem; border-radius: var(--radius-md); font-weight: bold; font-size: 0.8rem;" @onclick="() => PrintLetter(l.Id)">چاپ</button>
+                                    <button style="background: none; border: none; color: var(--danger); cursor: pointer; padding: 0.3rem; font-size: 0.8rem;" @onclick="() => DeleteLetter(l.Id)">حذف</button>
+                                </div>
                             </td>
                         </tr>
                     }
@@ -64,13 +106,20 @@
     </div>
 </div>
 
+<!-- Modal ثبت / مشاهده نامه -->
 @if (isModalOpen)
 {
     <div style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background-color: rgba(9,9,11,0.9); z-index: 100; display: flex; align-items: center; justify-content: center;" @onclick="CloseModal">
-        <div class="card" style="width: 100%; max-width: 820px; max-height: 90vh; overflow-y: auto; border-top: 3px solid var(--primary-color);" @onclick:stopPropagation="true">
+        <div class="card" style="width: 100%; max-width: 860px; max-height: 92vh; overflow-y: auto; border-top: 3px solid var(--primary-color);" @onclick:stopPropagation="true">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; border-bottom: 1px solid var(--border-color); padding-bottom: 1rem;">
                 <h2 style="font-size: 1.3rem; color: var(--text-main); font-weight: 800;">@(viewOnly ? "مشاهده نامه رسمی" : "ثبت نامه جدید")</h2>
-                <button style="background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 1.5rem; padding: 0.2rem 0.5rem;" @onclick="CloseModal">✕</button>
+                <div style="display: flex; gap: 0.75rem; align-items: center;">
+                    @if (viewOnly && editingLetter.Id > 0)
+                    {
+                        <button style="background: var(--primary-color); border: none; color: #000; cursor: pointer; padding: 0.4rem 0.8rem; border-radius: var(--radius-md); font-weight: bold; font-size: 0.85rem; font-family: var(--font-fa);" @onclick="() => PrintLetter(editingLetter.Id)">چاپ سربرگ</button>
+                    }
+                    <button style="background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 1.5rem; padding: 0.2rem 0.5rem;" @onclick="CloseModal">✕</button>
+                </div>
             </div>
 
             @if (!string.IsNullOrEmpty(modalError))
@@ -85,7 +134,7 @@
                 </div>
                 <div>
                     <label style="display: block; margin-bottom: 0.5rem; color: var(--text-muted); font-size: 0.85rem;">گیرنده / مرجع</label>
-                    <input type="text" @bind="editingLetter.Recipient" class="input-field" style="margin-bottom: 0;" readonly="@viewOnly" />
+                    <input type="text" @bind="editingLetter.Recipient" class="input-field" style="margin-bottom: 0;" readonly="@viewOnly" placeholder="نام سازمان یا شخص" />
                 </div>
                 <div>
                     <label style="display: block; margin-bottom: 0.5rem; color: var(--text-muted); font-size: 0.85rem;">وضعیت</label>
@@ -100,12 +149,12 @@
 
             <div style="margin-bottom: 1rem;">
                 <label style="display: block; margin-bottom: 0.5rem; color: var(--text-muted); font-size: 0.85rem;">موضوع نامه *</label>
-                <input type="text" @bind="editingLetter.Subject" class="input-field" style="margin-bottom: 0;" readonly="@viewOnly" />
+                <input type="text" @bind="editingLetter.Subject" class="input-field" style="margin-bottom: 0;" readonly="@viewOnly" placeholder="موضوع را وارد کنید..." />
             </div>
 
             <div style="margin-bottom: 1.5rem;">
                 <label style="display: block; margin-bottom: 0.5rem; color: var(--text-muted); font-size: 0.85rem;">متن نامه</label>
-                <textarea @bind="editingLetter.Content" class="input-field" style="min-height: 280px; resize: vertical; margin-bottom: 0; font-size: 0.95rem; line-height: 2;" readonly="@viewOnly"></textarea>
+                <textarea @bind="editingLetter.Content" class="input-field" style="min-height: 300px; resize: vertical; margin-bottom: 0; font-size: 0.95rem; line-height: 2.2;" readonly="@viewOnly" placeholder="متن کامل نامه را اینجا بنویسید..."></textarea>
             </div>
 
             <div style="display: flex; gap: 1rem;">
@@ -114,6 +163,10 @@
                     <button class="btn-primary" style="flex: 1;" @onclick="SaveLetter" disabled="@isSaving">
                         @if (isSaving) { <span>در حال ذخیره...</span> } else { <span>ذخیره در دبیرخانه</span> }
                     </button>
+                }
+                else
+                {
+                    <button class="btn-primary" style="flex: 1;" @onclick="SwitchToEdit">ویرایش وضعیت</button>
                 }
                 <button style="flex: 1; background: var(--bg-color); border: 1px solid var(--border-color); color: var(--text-main); border-radius: var(--radius-md); cursor: pointer; font-weight: bold; padding: 0.6rem;" @onclick="CloseModal">بستن</button>
             </div>
@@ -124,6 +177,7 @@
 @code {
     private AppDbContext _db = null!;
     private List<OfficialLetter> letters = new();
+    private List<OfficialLetter> filteredLetters = new();
     private bool isLoading = true;
     private bool isSaving = false;
     private bool isModalOpen = false;
@@ -131,6 +185,16 @@
     private OfficialLetter editingLetter = new();
     private string pageError = "";
     private string modalError = "";
+
+    private string _searchQuery = "";
+    private string searchQuery
+    {
+        get => _searchQuery;
+        set { _searchQuery = value; FilterLetters(); }
+    }
+
+    private string _filterStatus = "همه";
+    private string filterStatus { get => _filterStatus; set { _filterStatus = value; FilterLetters(); } }
 
     protected override async Task OnInitializedAsync()
     {
@@ -145,9 +209,27 @@
         try
         {
             letters = await _db.OfficialLetters.AsNoTracking().OrderByDescending(l => l.Id).ToListAsync();
+            FilterLetters();
         }
         catch (Exception ex) { pageError = ex.Message; }
         finally { isLoading = false; }
+    }
+
+    private void SetStatusFilter(string status) { _filterStatus = status; FilterLetters(); }
+
+    private void FilterLetters()
+    {
+        var q = letters.AsEnumerable();
+        if (_filterStatus != "همه") q = q.Where(l => l.Status == _filterStatus);
+        if (!string.IsNullOrWhiteSpace(_searchQuery))
+        {
+            var s = _searchQuery.ToLower();
+            q = q.Where(l =>
+                (l.Subject != null && l.Subject.Contains(s)) ||
+                (l.Recipient != null && l.Recipient.Contains(s)) ||
+                (l.LetterNumber != null && l.LetterNumber.ToLower().Contains(s)));
+        }
+        filteredLetters = q.ToList();
     }
 
     private void OpenAddModal()
@@ -174,7 +256,11 @@
         isModalOpen = true;
     }
 
-    private void CloseModal() { isModalOpen = false; modalError = ""; }
+    private void SwitchToEdit() { viewOnly = false; }
+
+    private void CloseModal() { isModalOpen = false; modalError = ""; viewOnly = false; }
+
+    private void PrintLetter(int id) => NavManager.NavigateTo($"/print/letter/{id}");
 
     private async Task SaveLetter()
     {
@@ -187,7 +273,10 @@
         try
         {
             await using var saveDb = await DbFactory.CreateDbContextAsync();
-            saveDb.OfficialLetters.Add(editingLetter);
+            if (editingLetter.Id == 0)
+                saveDb.OfficialLetters.Add(editingLetter);
+            else
+                saveDb.OfficialLetters.Update(editingLetter);
             await saveDb.SaveChangesAsync();
             await LoadLetters();
             CloseModal();

@@ -1,0 +1,190 @@
+@page "/print/letter/{Id:int}"
+@layout PrintLayout
+@using SmartERP.Core
+@using SmartERP.Infrastructure
+@using Microsoft.EntityFrameworkCore
+@using Microsoft.JSInterop
+@implements IDisposable
+@inject IDbContextFactory<AppDbContext> DbFactory
+@inject IJSRuntime JSRuntime
+@inject NavigationManager NavManager
+
+@if (isLoading)
+{
+    <div style="text-align: center; padding: 5rem; color: #000; font-family: 'Tahoma';">در حال آماده‌سازی نامه...</div>
+}
+else if (letter == null || company == null)
+{
+    <div style="text-align: center; padding: 5rem; color: #c00; font-family: 'Tahoma';">نامه یافت نشد.</div>
+}
+else
+{
+    <!-- سربرگ A4 -->
+    <div class="a4-page">
+
+        <!-- هدر سربرگ: لوگو + اطلاعات شرکت -->
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 3px double #222; padding-bottom: 0.75rem; margin-bottom: 1rem;">
+
+            <!-- اطلاعات شرکت (راست) -->
+            <div style="flex: 1; text-align: right;">
+                <h1 style="font-size: 1.5rem; font-weight: bold; margin: 0 0 0.2rem; color: #111;">@company.CompanyName</h1>
+                @if (!string.IsNullOrEmpty(company.Slogan))
+                {
+                    <p style="font-size: 0.85rem; color: #555; margin: 0 0 0.3rem;">@company.Slogan</p>
+                }
+                @if (!string.IsNullOrEmpty(company.PhoneNumber))
+                {
+                    <p style="font-size: 0.82rem; color: #444; margin: 0.1rem 0;">
+                        تلفن: <span style="font-family: 'Courier New', monospace; direction: ltr; display: inline-block;">@company.PhoneNumber</span>
+                    </p>
+                }
+                @if (!string.IsNullOrEmpty(company.Address))
+                {
+                    <p style="font-size: 0.78rem; color: #666; margin: 0.1rem 0;">آدرس: @company.Address</p>
+                }
+            </div>
+
+            <!-- لوگو (وسط) -->
+            <div style="flex: 0 0 auto; padding: 0 1.5rem; text-align: center;">
+                @if (!string.IsNullOrEmpty(company.LogoPath) && company.LogoPath != "/images/default-logo.png")
+                {
+                    <img src="@company.LogoPath" style="max-height: 80px; max-width: 130px; object-fit: contain;" alt="Logo" />
+                }
+                else
+                {
+                    <div style="width: 90px; height: 70px; border: 2px dashed #ccc; display: flex; align-items: center; justify-content: center; font-size: 0.7rem; color: #aaa;">لوگو</div>
+                }
+            </div>
+
+            <!-- اطلاعات نامه (چپ) -->
+            <div style="flex: 1; text-align: left; font-size: 0.84rem; line-height: 1.8; color: #333; direction: rtl;">
+                <table style="margin-right: auto; border-collapse: collapse; font-size: 0.84rem;">
+                    <tr>
+                        <td style="padding: 0.1rem 0.5rem; color: #666; white-space: nowrap;">شماره:</td>
+                        <td style="padding: 0.1rem 0; font-family: 'Courier New', monospace; font-weight: bold; direction: ltr;">@letter.LetterNumber</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 0.1rem 0.5rem; color: #666;">تاریخ:</td>
+                        <td style="padding: 0.1rem 0; font-family: 'Courier New', monospace; direction: ltr;">@letter.IssueDate.ToString("yyyy/MM/dd")</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 0.1rem 0.5rem; color: #666;">وضعیت:</td>
+                        <td style="padding: 0.1rem 0; font-weight: bold;">@letter.Status</td>
+                    </tr>
+                </table>
+            </div>
+        </div>
+
+        <!-- گیرنده -->
+        @if (!string.IsNullOrEmpty(letter.Recipient))
+        {
+            <div style="margin-bottom: 0.75rem; font-size: 0.9rem; border: 1px solid #e0e0e0; padding: 0.4rem 0.75rem; background: #fafafa; direction: rtl;">
+                <strong>گیرنده / مرجع:</strong> @letter.Recipient
+            </div>
+        }
+
+        <!-- موضوع -->
+        <div style="margin-bottom: 1rem; font-size: 1rem; font-weight: bold; text-align: center; background: #f3f4f6; padding: 0.5rem; border-right: 4px solid #222; direction: rtl;">
+            موضوع: @letter.Subject
+        </div>
+
+        <!-- متن نامه -->
+        <div style="flex: 1; min-height: 200px; font-size: 0.92rem; line-height: 2.5; text-align: justify; direction: rtl; white-space: pre-wrap; margin-bottom: 2rem; padding: 0 0.5rem;">
+            @letter.Content
+        </div>
+
+        <!-- فوتر: امضا و مهر -->
+        <div style="margin-top: auto; border-top: 1.5px solid #333; padding-top: 1.5rem;">
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 2rem;">
+                <div style="text-align: center; border: 1px solid #ddd; border-radius: 3px; padding: 0.75rem;">
+                    <p style="font-weight: bold; font-size: 0.9rem; margin-bottom: 0.3rem;">مهر و امضای مدیر</p>
+                    <p style="font-size: 0.8rem; color: #555; margin-bottom: 3.5rem;">@company.ManagerName</p>
+                    <p style="font-size: 0.75rem; color: #999;">تاریخ: ...................</p>
+                </div>
+                <div style="text-align: center; border: 1px solid #ddd; border-radius: 3px; padding: 0.75rem;">
+                    <p style="font-weight: bold; font-size: 0.9rem; margin-bottom: 0.3rem;">مهر دفتر / دبیرخانه</p>
+                    <p style="font-size: 0.8rem; color: #555; margin-bottom: 3.5rem;">واحد اداری</p>
+                    <p style="font-size: 0.75rem; color: #999;">تاریخ وصول: ...................</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- فوتر آدرس -->
+        <div style="text-align: center; font-size: 0.75rem; color: #777; border-top: 1px dashed #ccc; padding-top: 0.5rem; margin-top: 1rem;">
+            @company.CompanyName — @company.Address
+            @if (!string.IsNullOrEmpty(company.PhoneNumber))
+            {
+                <span> | تلفن: @company.PhoneNumber</span>
+            }
+        </div>
+    </div>
+
+    <!-- دکمه‌های کنترل (در پرینت مخفی) -->
+    <div class="no-print" style="position: fixed; bottom: 20px; left: 20px; display: flex; gap: 10px; z-index: 10;">
+        <button @onclick="PrintPage"
+                style="background-color: #f59e0b; color: #000; padding: 10px 24px; border: none; border-radius: 5px; font-weight: bold; cursor: pointer; font-family: 'Tahoma'; font-size: 1rem;">
+            چاپ روی A4
+        </button>
+        <button @onclick="GoBack"
+                style="background-color: #374151; color: #fff; padding: 10px 20px; border: none; border-radius: 5px; font-weight: bold; cursor: pointer; font-family: 'Tahoma';">
+            بازگشت
+        </button>
+    </div>
+}
+
+<style>
+    .a4-page {
+        width: 210mm;
+        min-height: 297mm;
+        margin: 8mm auto;
+        background: white;
+        color: #111;
+        padding: 14mm;
+        font-family: 'Tahoma', 'Vazirmatn', sans-serif;
+        direction: rtl;
+        display: flex;
+        flex-direction: column;
+        border: 1px solid #ddd;
+    }
+    @@media print {
+        .no-print { display: none !important; }
+        .a4-page {
+            margin: 0;
+            border: none;
+            width: auto;
+            min-height: auto;
+            padding: 10mm;
+        }
+        body { background: white !important; }
+    }
+</style>
+
+@code {
+    [Parameter] public int Id { get; set; }
+
+    private AppDbContext _db = null!;
+    private OfficialLetter? letter;
+    private CompanySetting? company;
+    private bool isLoading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _db = await DbFactory.CreateDbContextAsync();
+        try
+        {
+            letter = await _db.OfficialLetters.AsNoTracking().FirstOrDefaultAsync(l => l.Id == Id);
+            company = await _db.CompanySettings.AsNoTracking().FirstOrDefaultAsync();
+        }
+        catch { }
+        finally { isLoading = false; }
+    }
+
+    private async Task PrintPage()
+    {
+        await JSRuntime.InvokeVoidAsync("window.print");
+    }
+
+    private void GoBack() => NavManager.NavigateTo("/letters");
+
+    public void Dispose() => _db?.Dispose();
+}

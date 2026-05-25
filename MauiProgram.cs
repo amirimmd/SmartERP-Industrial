@@ -55,6 +55,7 @@ namespace SmartERP
                     _ = db.Invoices.FirstOrDefault();
                     _ = db.Customers.FirstOrDefault();
                     _ = db.Orders.FirstOrDefault();
+                    _ = db.OfficialLetters.FirstOrDefault();
                 }
                 catch (Exception)
                 {
