@@ -401,7 +401,7 @@
         filteredInvoices = q.ToList();
     }
 
-    private void OpenAddModal()
+    private async Task OpenAddModal()
     {
         newInvoice = new Invoice
         {
@@ -417,10 +417,17 @@
         selectedProductId = 0;
         quantityToAdd = 1;
         isModalOpen = true;
+        await InvokeAsync(StateHasChanged);
     }
 
-    private void CloseModal() { isModalOpen = false; modalError = ""; }
-    private void CloseModalOnBackdrop() { CloseModal(); }
+    private async Task CloseModal()
+    {
+        isModalOpen = false;
+        modalError = "";
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task CloseModalOnBackdrop() => await CloseModal();
 
     private void AddItem()
     {
@@ -543,13 +550,13 @@
 
             await saveDb.SaveChangesAsync();
             await RefreshData();
-            CloseModal();
+            await CloseModal();
         }
         catch (Exception ex) { modalError = $"خطا در ثبت فاکتور: {ex.Message}"; }
         finally { isSaving = false; }
     }
 
-    private void OpenDispatchModal(Invoice inv)
+    private async Task OpenDispatchModal(Invoice inv)
     {
         activeInvoice = new Invoice
         {
@@ -563,6 +570,7 @@
         };
         dispatchError = "";
         isDispatchModalOpen = true;
+        await InvokeAsync(StateHasChanged);
     }
 
     private async Task SaveDispatch()
@@ -592,7 +600,13 @@
         finally { isSaving = false; }
     }
 
-    private void CloseDispatchModal() { isDispatchModalOpen = false; dispatchError = ""; }
+    private async Task CloseDispatchModal()
+    {
+        isDispatchModalOpen = false;
+        dispatchError = "";
+        await InvokeAsync(StateHasChanged);
+    }
+
     private void PrintInvoice(int id) => NavManager.NavigateTo($"/print/invoice/{id}");
 
     private async Task DeleteInvoice(int id)
