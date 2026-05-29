@@ -3,11 +3,12 @@
 
 <Router AppAssembly="@typeof(MauiProgram).Assembly">
     <Found Context="routeData">
-        <RouteView RouteData="@routeData" DefaultLayout="@typeof(MainLayout)" />
+        <!-- استفاده از نام کامل (Full Namespace) برای جلوگیری از تداخل Layout ها -->
+        <RouteView RouteData="@routeData" DefaultLayout="@typeof(SmartERP.UI.MainLayout)" />
         <FocusOnNavigate RouteData="@routeData" Selector="h1" />
     </Found>
     <NotFound>
-        <LayoutView Layout="@typeof(MainLayout)">
+        <LayoutView Layout="@typeof(SmartERP.UI.MainLayout)">
             <p role="alert" style="color: #ef4444; text-align: center; margin-top: 2rem; font-size: 1.2rem;">صفحه مورد نظر در سیستم یافت نشد.</p>
         </LayoutView>
     </NotFound>
