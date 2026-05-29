@@ -1,4 +1,3 @@
-using System;
 using System.ComponentModel.DataAnnotations;
 
 namespace SmartERP.Core
@@ -43,11 +42,21 @@ namespace SmartERP.Core
         public string PaymentMethod { get; set; } = "نقدی"; // نقدی، چکی، ترکیبی
         public decimal CashAmount { get; set; }
         public decimal CheckAmount { get; set; }
-        public string CheckNumber { get; set; } = string.Empty;   // شماره صیاد 16 رقمی
+        public string CheckNumber { get; set; } = string.Empty;
         public string CheckBankName { get; set; } = string.Empty;
         public DateTime? CheckDueDate { get; set; }
-        public string CheckDetails { get; set; } = string.Empty;  // خلاصه اطلاعات چک برای چاپ
+        public string CheckDetails { get; set; } = string.Empty;
 
         public string Notes { get; set; } = string.Empty;
+
+        // مرحله ۲: وضعیت تولید
+        public bool NeedsProduction { get; set; } = false;
+        public bool AutoCreateProductionOrder { get; set; } = false;
+        public string ProductionNotes { get; set; } = string.Empty;
+
+        // مرحله ۴: خدمات پس از فروش
+        public int WarrantyMonths { get; set; } = 0;
+        public string InstallationNotes { get; set; } = string.Empty;
+        public string AfterSaleNotes { get; set; } = string.Empty;
     }
 }

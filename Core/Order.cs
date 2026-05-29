@@ -1,4 +1,3 @@
-using System;
 using System.ComponentModel.DataAnnotations;
 
 namespace SmartERP.Core
@@ -7,20 +6,31 @@ namespace SmartERP.Core
     {
         [Key]
         public int Id { get; set; }
-        
+
         public string OrderNumber { get; set; } = string.Empty;
-        
+
+        // ارتباط با فاکتور مرجع
+        public int? InvoiceId { get; set; }
+        public string InvoiceNumber { get; set; } = string.Empty;
+
         public string CustomerName { get; set; } = string.Empty;
-        
+
         public DateTime OrderDate { get; set; } = DateTime.Now;
-        
+
         public DateTime ExpectedDelivery { get; set; } = DateTime.Now.AddDays(7);
-        
-        // وضعیت ارتباط با تولید: بررسی، در حال ساخت، آماده تحویل
-        public string Status { get; set; } = "در انتظار بررسی"; 
-        
-        public string ItemsJson { get; set; } = "[]"; 
-        
+
+        // وضعیت: در انتظار بررسی، در حال ساخت، آماده تحویل
+        public string Status { get; set; } = "در انتظار بررسی";
+
+        // اقلام JSON (منتقل‌شده از فاکتور یا متن آزاد)
+        public string ItemsJson { get; set; } = "[]";
+
         public decimal TotalAmount { get; set; }
+
+        // مشخصات فنی اضافی برای چاپ دستور کار
+        public string TechnicalSpecs { get; set; } = string.Empty;
+
+        // یادداشت مدیر تولید
+        public string ProductionManagerNotes { get; set; } = string.Empty;
     }
 }

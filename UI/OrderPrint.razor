@@ -1,0 +1,285 @@
+@page "/print/order/{Id:int}"
+@layout PrintLayout
+@using SmartERP.Core
+@using SmartERP.Infrastructure
+@using Microsoft.EntityFrameworkCore
+@using System.Text.Json
+@using Microsoft.JSInterop
+@implements IDisposable
+@inject IDbContextFactory<AppDbContext> DbFactory
+@inject IJSRuntime JSRuntime
+@inject NavigationManager NavManager
+
+@if (isLoading)
+{
+    <div style="text-align: center; padding: 5rem; color: #000; font-family: 'Tahoma';">در حال آماده‌سازی دستور کار تولید...</div>
+}
+else if (order == null || company == null)
+{
+    <div style="text-align: center; padding: 5rem; color: #c00; font-family: 'Tahoma';">دستور کار یافت نشد.</div>
+}
+else
+{
+    <div class="a4-page">
+
+        <!-- هدر دستور کار -->
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 3px solid #111; padding-bottom: 0.75rem; margin-bottom: 0.75rem;">
+            <div style="flex: 1; text-align: right;">
+                <h1 style="font-size: 1.3rem; font-weight: bold; margin: 0 0 0.25rem 0; color: #111;">@company.CompanyName</h1>
+                @if (!string.IsNullOrEmpty(company.Slogan))
+                {
+                    <p style="font-size: 0.78rem; margin: 0; color: #555;">@company.Slogan</p>
+                }
+                @if (!string.IsNullOrEmpty(company.PhoneNumber))
+                {
+                    <p style="font-size: 0.78rem; margin: 0.2rem 0 0; color: #555;">تلفن: <span style="font-family: 'Courier New', monospace;">@company.PhoneNumber</span></p>
+                }
+            </div>
+            <div style="flex: 0 0 auto; padding: 0 1rem;">
+                @if (!string.IsNullOrEmpty(company.LogoPath) && company.LogoPath != "/images/default-logo.png")
+                {
+                    <img src="@company.LogoPath" style="max-height: 65px; max-width: 110px; object-fit: contain;" alt="Logo" />
+                }
+            </div>
+            <div style="flex: 1; text-align: left; font-size: 0.82rem; line-height: 1.8; color: #333; direction: rtl; border: 2px solid #111; padding: 0.5rem 0.75rem; border-radius: 4px;">
+                <div style="font-size: 1rem; font-weight: bold; color: #000; text-align: center; border-bottom: 1px solid #ccc; padding-bottom: 0.3rem; margin-bottom: 0.3rem;">دستور کار تولید</div>
+                <div>شماره سفارش: <strong style="font-family: 'Courier New', monospace;">@order.OrderNumber</strong></div>
+                @if (!string.IsNullOrEmpty(order.InvoiceNumber))
+                {
+                    <div>فاکتور مرجع: <strong style="font-family: 'Courier New', monospace; color: #1a56db;">@order.InvoiceNumber</strong></div>
+                }
+                <div>تاریخ صدور: <strong style="font-family: 'Courier New', monospace;">@order.OrderDate.ToString("yyyy/MM/dd")</strong></div>
+                <div>تاریخ تحویل: <strong style="font-family: 'Courier New', monospace; color: #d00;">@order.ExpectedDelivery.ToString("yyyy/MM/dd")</strong></div>
+            </div>
+        </div>
+
+        <!-- اطلاعات مشتری و وضعیت -->
+        <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 0; border: 1px solid #bbb; margin-bottom: 0.75rem;">
+            <div style="border-left: 1px solid #bbb; padding: 0.6rem 0.75rem;">
+                <div style="font-size: 0.78rem; font-weight: bold; color: #444; border-bottom: 1px dashed #ddd; padding-bottom: 0.25rem; margin-bottom: 0.35rem;">مشخصات سفارش‌دهنده</div>
+                <div style="font-size: 0.9rem; font-weight: bold; margin-bottom: 0.15rem;">@order.CustomerName</div>
+                @if (!string.IsNullOrEmpty(order.InvoiceNumber))
+                {
+                    <div style="font-size: 0.8rem; color: #555;">مرجع: فاکتور <span style="font-family: 'Courier New', monospace; color: #1a56db;">@order.InvoiceNumber</span></div>
+                }
+            </div>
+            <div style="padding: 0.6rem 0.75rem;">
+                <div style="font-size: 0.78rem; font-weight: bold; color: #444; border-bottom: 1px dashed #ddd; padding-bottom: 0.25rem; margin-bottom: 0.35rem;">وضعیت جاری</div>
+                <div style="font-size: 0.88rem; font-weight: bold;">@order.Status</div>
+                <div style="font-size: 0.78rem; color: #666; margin-top: 0.2rem;">تحویل: @order.ExpectedDelivery.ToString("yyyy/MM/dd")</div>
+            </div>
+        </div>
+
+        <!-- جدول اقلام تولید (بدون قیمت) -->
+        <div style="font-size: 0.78rem; font-weight: bold; color: #333; margin-bottom: 0.4rem; padding-right: 0.2rem;">اقلام دستور کار تولید:</div>
+        <table style="width: 100%; border-collapse: collapse; margin-bottom: 0.75rem; font-size: 0.85rem;">
+            <thead>
+                <tr style="background-color: #1f2937; color: #fff;">
+                    <th style="padding: 0.5rem 0.6rem; border: 1px solid #374151; width: 6%; text-align: center;">ردیف</th>
+                    <th style="padding: 0.5rem 0.6rem; border: 1px solid #374151; text-align: right;">شرح قطعه / کالا</th>
+                    <th style="padding: 0.5rem 0.6rem; border: 1px solid #374151; width: 12%; text-align: center;">تعداد</th>
+                    <th style="padding: 0.5rem 0.6rem; border: 1px solid #374151; width: 20%; text-align: center;">واحد</th>
+                    <th style="padding: 0.5rem 0.6rem; border: 1px solid #374151; width: 22%; text-align: center;">تاریخ تحویل</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (parsedItems.Any())
+                {
+                    int row = 1;
+                    @foreach (var item in parsedItems)
+                    {
+                        <tr>
+                            <td style="padding: 0.45rem; border: 1px solid #ddd; text-align: center; font-family: 'Courier New', monospace; color: #555;">@row</td>
+                            <td style="padding: 0.45rem 0.6rem; border: 1px solid #ddd; font-weight: bold;">@item.ProductName</td>
+                            <td style="padding: 0.45rem; border: 1px solid #ddd; text-align: center; font-family: 'Courier New', monospace; font-size: 1rem; font-weight: bold;">@item.Quantity</td>
+                            <td style="padding: 0.45rem; border: 1px solid #ddd; text-align: center; color: #555;">عدد</td>
+                            <td style="padding: 0.45rem; border: 1px solid #ddd; text-align: center; font-family: 'Courier New', monospace; color: #d00;">@order.ExpectedDelivery.ToString("yyyy/MM/dd")</td>
+                        </tr>
+                        row++;
+                    }
+                    @for (int i = 0; i < Math.Max(0, 5 - parsedItems.Count); i++)
+                    {
+                        <tr style="height: 30px;">
+                            <td style="border: 1px solid #ddd;"></td>
+                            <td style="border: 1px solid #ddd;"></td>
+                            <td style="border: 1px solid #ddd;"></td>
+                            <td style="border: 1px solid #ddd;"></td>
+                            <td style="border: 1px solid #ddd;"></td>
+                        </tr>
+                    }
+                }
+                else
+                {
+                    <!-- نمایش به صورت ردیف‌های خالی با تکست آزاد -->
+                    <tr style="height: 30px;"><td style="border: 1px solid #ddd;"></td><td style="border: 1px solid #ddd; padding: 0.4rem 0.6rem;" colspan="3">@(string.IsNullOrEmpty(order.TechnicalSpecs) ? "" : order.TechnicalSpecs)</td><td style="border: 1px solid #ddd;"></td></tr>
+                    @for (int i = 1; i < 6; i++)
+                    {
+                        <tr style="height: 30px;">
+                            <td style="border: 1px solid #ddd;"></td>
+                            <td style="border: 1px solid #ddd;" colspan="3"></td>
+                            <td style="border: 1px solid #ddd;"></td>
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+
+        <!-- مشخصات فنی اضافی -->
+        @if (!string.IsNullOrWhiteSpace(order.TechnicalSpecs) && parsedItems.Any())
+        {
+            <div style="border: 1px solid #ccc; padding: 0.65rem 0.75rem; margin-bottom: 0.75rem; border-radius: 3px;">
+                <div style="font-size: 0.78rem; font-weight: bold; color: #444; margin-bottom: 0.35rem;">مشخصات فنی و دستورالعمل تولید:</div>
+                <div style="font-size: 0.82rem; color: #333; line-height: 1.6; white-space: pre-wrap;">@order.TechnicalSpecs</div>
+            </div>
+        }
+
+        <!-- یادداشت مدیر تولید -->
+        @if (!string.IsNullOrWhiteSpace(order.ProductionManagerNotes))
+        {
+            <div style="border: 1px solid #bbb; padding: 0.65rem 0.75rem; margin-bottom: 0.75rem; background-color: #fffbeb; border-radius: 3px;">
+                <div style="font-size: 0.78rem; font-weight: bold; color: #92400e; margin-bottom: 0.35rem;">یادداشت مدیر تولید:</div>
+                <div style="font-size: 0.82rem; color: #78350f;">@order.ProductionManagerNotes</div>
+            </div>
+        }
+
+        <!-- جعبه مشخصات فنی خالی (برای تکمیل دستی) -->
+        <div style="border: 1px solid #ccc; padding: 0.65rem 0.75rem; margin-bottom: 1rem; min-height: 55px;">
+            <div style="font-size: 0.78rem; font-weight: bold; color: #444; margin-bottom: 0.25rem;">توضیحات و ملاحظات مدیر تولید (محل دست‌نویس):</div>
+            <div style="height: 35px;"></div>
+        </div>
+
+        <!-- کادرهای تاییدیه -->
+        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0.75rem; border-top: 2px solid #111; padding-top: 1rem; margin-top: auto;">
+            <div style="text-align: center; border: 1px solid #999; border-radius: 3px; padding: 0.75rem;">
+                <p style="font-weight: bold; font-size: 0.85rem; margin-bottom: 0.4rem; color: #111;">تاییدیه مدیر تولید</p>
+                <div style="height: 50px; border-bottom: 1px dashed #ccc; margin-bottom: 0.4rem;"></div>
+                <p style="font-size: 0.72rem; color: #666;">مهر و امضا</p>
+                <p style="font-size: 0.68rem; color: #999; margin-top: 0.2rem;">تاریخ: .............</p>
+            </div>
+            <div style="text-align: center; border: 1px solid #999; border-radius: 3px; padding: 0.75rem;">
+                <p style="font-weight: bold; font-size: 0.85rem; margin-bottom: 0.4rem; color: #111;">تاییدیه کنترل کیفی</p>
+                <div style="height: 50px; border-bottom: 1px dashed #ccc; margin-bottom: 0.4rem;"></div>
+                <p style="font-size: 0.72rem; color: #666;">امضای مسئول QC</p>
+                <p style="font-size: 0.68rem; color: #999; margin-top: 0.2rem;">تاریخ: .............</p>
+            </div>
+            <div style="text-align: center; border: 1px solid #999; border-radius: 3px; padding: 0.75rem;">
+                <p style="font-weight: bold; font-size: 0.85rem; margin-bottom: 0.4rem; color: #111;">تحویل به انبار / ارسال</p>
+                <div style="height: 50px; border-bottom: 1px dashed #ccc; margin-bottom: 0.4rem;"></div>
+                <p style="font-size: 0.72rem; color: #666;">امضای مسئول انبار</p>
+                <p style="font-size: 0.68rem; color: #999; margin-top: 0.2rem;">تاریخ: .............</p>
+            </div>
+        </div>
+
+        @if (!string.IsNullOrEmpty(company.Address))
+        {
+            <div style="text-align: center; font-size: 0.72rem; color: #777; border-top: 1px dashed #ccc; padding-top: 0.5rem; margin-top: 0.75rem;">
+                آدرس کارخانه: @company.Address
+            </div>
+        }
+
+    </div>
+
+    <!-- دکمه‌های کنترل (مخفی در پرینت) -->
+    <div class="no-print" style="position: fixed; bottom: 20px; left: 20px; display: flex; gap: 10px; z-index: 10;">
+        <button @onclick="PrintPage"
+                style="background-color: #f59e0b; color: #000; padding: 10px 24px; border: none; border-radius: 5px; font-weight: bold; cursor: pointer; font-family: 'Tahoma'; font-size: 1rem;">
+            چاپ دستور کار
+        </button>
+        <button @onclick="GoBack"
+                style="background-color: #374151; color: #fff; padding: 10px 20px; border: none; border-radius: 5px; font-weight: bold; cursor: pointer; font-family: 'Tahoma';">
+            بازگشت
+        </button>
+    </div>
+}
+
+<style>
+    .a4-page {
+        width: 210mm;
+        min-height: 297mm;
+        margin: 8mm auto;
+        background: white;
+        color: #111;
+        padding: 12mm;
+        font-family: 'Tahoma', sans-serif;
+        direction: rtl;
+        display: flex;
+        flex-direction: column;
+        border: 1px solid #ddd;
+    }
+    @@media print {
+        .no-print { display: none !important; }
+        .a4-page {
+            margin: 0;
+            border: none;
+            width: auto;
+            min-height: auto;
+            padding: 8mm;
+        }
+        body { background: white !important; }
+    }
+</style>
+
+@code {
+    [Parameter] public int Id { get; set; }
+
+    private AppDbContext _db = null!;
+    private Order? order;
+    private CompanySetting? company;
+    private bool isLoading = true;
+
+    private class ParsedItem
+    {
+        public string ProductName { get; set; } = string.Empty;
+        public double Quantity { get; set; }
+    }
+    private List<ParsedItem> parsedItems = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        _db = await DbFactory.CreateDbContextAsync();
+        try
+        {
+            order = await _db.Orders.AsNoTracking().FirstOrDefaultAsync(o => o.Id == Id);
+            company = await _db.CompanySettings.AsNoTracking().FirstOrDefaultAsync();
+
+            if (order != null && !string.IsNullOrEmpty(order.ItemsJson) && order.ItemsJson != "[]")
+            {
+                try
+                {
+                    // تلاش برای parse به عنوان آرایه JSON ساختارمند
+                    using var doc = JsonDocument.Parse(order.ItemsJson);
+                    if (doc.RootElement.ValueKind == JsonValueKind.Array)
+                    {
+                        foreach (var el in doc.RootElement.EnumerateArray())
+                        {
+                            if (el.TryGetProperty("ProductName", out var nameProp) &&
+                                el.TryGetProperty("Quantity", out var qtyProp))
+                            {
+                                parsedItems.Add(new ParsedItem
+                                {
+                                    ProductName = nameProp.GetString() ?? "",
+                                    Quantity = qtyProp.GetDouble()
+                                });
+                            }
+                        }
+                    }
+                }
+                catch
+                {
+                    // ItemsJson متن آزاد است — parsedItems خالی می‌ماند
+                    // اگر TechnicalSpecs خالی است، ItemsJson را در آن کپی می‌کنیم
+                    if (order != null && string.IsNullOrWhiteSpace(order.TechnicalSpecs))
+                        order.TechnicalSpecs = order.ItemsJson;
+                }
+            }
+        }
+        catch { }
+        finally { isLoading = false; }
+    }
+
+    private async Task PrintPage() => await JSRuntime.InvokeVoidAsync("window.print");
+
+    private void GoBack() => NavManager.NavigateTo("/orders");
+
+    public void Dispose() => _db?.Dispose();
+}

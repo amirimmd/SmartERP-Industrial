@@ -87,6 +87,10 @@
                                 <div style="color: var(--primary-color);">@inv.InvoiceNumber</div>
                                 <div style="font-size: 0.75rem; color: var(--text-muted); font-family: var(--font-fa);">@inv.InvoiceType</div>
                                 <div style="font-size: 0.72rem; color: var(--text-muted);">@inv.InvoiceDate.ToString("yyyy/MM/dd")</div>
+                                @if (inv.NeedsProduction)
+                                {
+                                    <div style="font-size: 0.7rem; color: var(--primary-color); margin-top: 0.2rem;">⚙ نیاز به تولید</div>
+                                }
                             </td>
                             <td style="padding: 1rem; font-weight: bold;">
                                 @inv.CustomerName
@@ -104,6 +108,10 @@
                                 else if (inv.Status == "آماده تحویل") { <span style="color: var(--success); font-weight: bold;">@inv.Status</span> }
                                 else if (inv.Status == "در حال ارسال") { <span style="color: var(--primary-color); font-weight: bold;">@inv.Status</span> }
                                 else { <span style="color: var(--accent-color); font-weight: bold;">@inv.Status</span> }
+                                @if (inv.WarrantyMonths > 0)
+                                {
+                                    <div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 0.2rem;">گارانتی @inv.WarrantyMonths ماهه</div>
+                                }
                             </td>
                             <td style="padding: 1rem; font-size: 0.85rem; color: var(--text-muted);">
                                 @(string.IsNullOrEmpty(inv.DriverName) ? "---" : $"{inv.DriverName} | {inv.VehiclePlate}")
@@ -125,232 +133,407 @@
     </div>
 </div>
 
-<!-- Modal صدور فاکتور -->
+<!-- ================== Modal ویزارد صدور فاکتور ================== -->
 @if (isModalOpen)
 {
-    <div style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background-color: rgba(9,9,11,0.92); z-index: 200; display: flex; align-items: center; justify-content: center;" @onclick="CloseModalOnBackdrop">
-        <div class="card" style="width: 100%; max-width: 980px; max-height: 93vh; overflow-y: auto; border-top: 3px solid var(--primary-color);" @onclick:stopPropagation="true">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; border-bottom: 1px solid var(--border-color); padding-bottom: 1rem;">
+    <div style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background-color: rgba(9,9,11,0.93); z-index: 200; display: flex; align-items: center; justify-content: center; padding: 1rem;" @onclick="CloseModalOnBackdrop">
+        <div class="card" style="width: 100%; max-width: 1000px; max-height: 95vh; overflow-y: auto; border-top: 3px solid var(--primary-color); display: flex; flex-direction: column;" @onclick:stopPropagation="true">
+
+            <!-- هدر مودال -->
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; border-bottom: 1px solid var(--border-color); padding-bottom: 1rem; flex-shrink: 0;">
                 <h2 style="font-size: 1.3rem; color: var(--text-main); font-weight: 800;">صدور سند جدید</h2>
                 <button style="background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 1.5rem; padding: 0.2rem 0.5rem;" @onclick="CloseModal">✕</button>
             </div>
 
+            <!-- نشانگر مراحل -->
+            <div style="display: flex; align-items: flex-start; justify-content: center; margin-bottom: 1.75rem; flex-shrink: 0; gap: 0;">
+                @{
+                    var stepTitles = new[] { "اطلاعات و سبد خرید", "وضعیت تولید", "لجستیک و ارسال", "خدمات پس از فروش" };
+                }
+                @for (int si = 1; si <= 4; si++)
+                {
+                    var stepIndex = si;
+                    var isActive = currentStep == stepIndex;
+                    var isDone = currentStep > stepIndex;
+                    <div style="display: flex; align-items: flex-start; gap: 0;">
+                        <div style="display: flex; flex-direction: column; align-items: center; gap: 0.3rem; min-width: 90px;">
+                            <button @onclick="() => { if (stepIndex < currentStep) { currentStep = stepIndex; modalError = \"\"; } }"
+                                    style="width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 0.9rem; font-family: var(--font-en); border: 2px solid @(isDone || isActive ? "var(--primary-color)" : "var(--border-color)"); background: @(isDone ? "var(--primary-color)" : isActive ? "var(--primary-color)" : "var(--bg-color)"); color: @(isDone || isActive ? "#000" : "var(--text-muted)"); cursor: @(isDone ? "pointer" : "default"); transition: all 0.2s;">
+                                @if (isDone) { <span>✓</span> } else { <span>@stepIndex</span> }
+                            </button>
+                            <span style="font-size: 0.7rem; text-align: center; line-height: 1.3; color: @(isActive ? "var(--primary-color)" : isDone ? "var(--success)" : "var(--text-muted)"); font-weight: @(isActive ? "bold" : "normal"); max-width: 85px;">@stepTitles[stepIndex - 1]</span>
+                        </div>
+                        @if (stepIndex < 4)
+                        {
+                            <div style="width: 55px; height: 2px; background: @(currentStep > stepIndex ? "var(--primary-color)" : "var(--border-color)"); margin-top: 17px; flex-shrink: 0;"></div>
+                        }
+                    </div>
+                }
+            </div>
+
+            <!-- پیام خطا -->
             @if (!string.IsNullOrEmpty(modalError))
             {
-                <div class="alert-error">@modalError</div>
+                <div class="alert-error" style="flex-shrink: 0;">@modalError</div>
             }
 
-            <!-- ردیف اول: مشتری (با autocomplete)، تلفن، نوع سند، شماره -->
-            <div style="display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
-                <!-- Autocomplete مشتری -->
-                <div style="position: relative;">
-                    <label style="display: block; margin-bottom: 0.3rem; color: var(--text-muted); font-size: 0.85rem;">
-                        نام خریدار / شرکت *
-                        @if (newInvoice.CustomerId.HasValue)
-                        {
-                            <span style="color: var(--success); font-size: 0.75rem; margin-right: 0.4rem;">✓ از CRM</span>
-                        }
-                    </label>
-                    <input type="text"
-                           value="@newInvoice.CustomerName"
-                           @oninput="OnCustomerNameInput"
-                           @onfocus="OnCustomerFocus"
-                           @onblur="OnCustomerBlur"
-                           class="input-field"
-                           style="margin-bottom: 0;"
-                           placeholder="جستجو در CRM یا نام جدید..." />
-                    @if (showCustomerSuggestions && customerSuggestions.Any())
-                    {
-                        <div style="position: absolute; top: 100%; right: 0; left: 0; z-index: 500; background: var(--surface-color); border: 1px solid var(--primary-color); border-top: none; max-height: 220px; overflow-y: auto; direction: rtl;">
-                            @foreach (var cust in customerSuggestions)
-                            {
-                                <div @onmousedown="() => SelectCustomer(cust)"
-                                     style="padding: 0.6rem 1rem; cursor: pointer; border-bottom: 1px solid var(--border-color);">
-                                    <div style="font-weight: bold; font-size: 0.9rem; color: var(--text-main);">@cust.FullName</div>
-                                    @if (!string.IsNullOrEmpty(cust.CompanyName))
-                                    {
-                                        <div style="font-size: 0.78rem; color: var(--accent-color);">@cust.CompanyName</div>
-                                    }
-                                    @if (!string.IsNullOrEmpty(cust.PhoneNumber))
-                                    {
-                                        <div style="font-size: 0.78rem; color: var(--text-muted); font-family: var(--font-en);">@cust.PhoneNumber</div>
-                                    }
-                                </div>
-                            }
-                        </div>
-                    }
-                </div>
-                <div>
-                    <label style="display: block; margin-bottom: 0.3rem; color: var(--text-muted); font-size: 0.85rem;">موبایل خریدار</label>
-                    <input type="text" @bind="newInvoice.CustomerPhone" class="input-field" style="margin-bottom: 0; font-family: var(--font-en); direction: ltr;" placeholder="09xxxxxxxxx" />
-                </div>
-                <div>
-                    <label style="display: block; margin-bottom: 0.3rem; color: var(--text-muted); font-size: 0.85rem;">نوع سند</label>
-                    <select @bind="newInvoice.InvoiceType" class="input-field" style="margin-bottom: 0; border-color: var(--primary-color);">
-                        <option value="پیش‌فاکتور">پیش‌فاکتور</option>
-                        <option value="فاکتور رسمی">فاکتور رسمی</option>
-                        <option value="حواله خروج">حواله خروج انبار</option>
-                    </select>
-                </div>
-                <div>
-                    <label style="display: block; margin-bottom: 0.3rem; color: var(--text-muted); font-size: 0.85rem;">شماره سند (سیستمی)</label>
-                    <input type="text" readonly value="@newInvoice.InvoiceNumber" class="input-field" style="margin-bottom: 0; background-color: var(--bg-color); color: var(--primary-color); font-family: var(--font-en);" />
-                </div>
-            </div>
-
-            <!-- ردیف دوم: پروژه و آدرس تحویل -->
-            <div style="display: grid; grid-template-columns: 1fr 2fr; gap: 1rem; margin-bottom: 1.5rem;">
-                <div>
-                    <label style="display: block; margin-bottom: 0.3rem; color: var(--text-muted); font-size: 0.85rem;">نام پروژه / ارجاع</label>
-                    <input type="text" @bind="newInvoice.ProjectName" class="input-field" style="margin-bottom: 0;" />
-                </div>
-                <div>
-                    <label style="display: block; margin-bottom: 0.3rem; color: var(--text-muted); font-size: 0.85rem;">آدرس دقیق تحویل</label>
-                    <input type="text" @bind="newInvoice.DeliveryAddress" class="input-field" style="margin-bottom: 0;" />
-                </div>
-            </div>
-
-            <!-- انتخاب کالا از انبار -->
-            <div style="background-color: var(--bg-color); padding: 1rem; border-radius: var(--radius-md); border: 1px solid var(--border-color); margin-bottom: 1rem;">
-                <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 0.75rem; font-weight: bold;">انتخاب کالا از انبار:</p>
-                @if (!availableProducts.Any())
-                {
-                    <p style="color: var(--danger); font-size: 0.85rem; margin-bottom: 0.5rem;">هیچ محصولی با موجودی مثبت یافت نشد. ابتدا انبار را شارژ کنید.</p>
-                }
-                <div style="display: flex; gap: 1rem; align-items: flex-end;">
-                    <div style="flex-grow: 1;">
-                        <select @bind="selectedProductId" class="input-field" style="margin-bottom: 0;" disabled="@(!availableProducts.Any())">
-                            <option value="0">-- انتخاب قطعه از انبار --</option>
-                            @foreach (var p in availableProducts)
-                            {
-                                <option value="@p.Id">@p.Code — @p.Name (موجودی: @p.StockQuantity @p.Unit) | @p.Price.ToString("N0") ریال</option>
-                            }
-                        </select>
-                    </div>
-                    <div style="width: 130px;">
-                        <input type="number" @bind="quantityToAdd" class="input-field" style="margin-bottom: 0; font-family: var(--font-en);" placeholder="تعداد" min="1" step="1" />
-                    </div>
-                    <button class="btn-primary" @onclick="AddItem" style="padding: 0.75rem 1rem; white-space: nowrap;" disabled="@(selectedProductId == 0 || !availableProducts.Any())">+ افزودن</button>
-                </div>
-                @if (!string.IsNullOrEmpty(itemError))
-                {
-                    <div style="color: var(--danger); font-size: 0.85rem; margin-top: 0.5rem; font-weight: bold;">@itemError</div>
-                }
-            </div>
-
-            <!-- آیتم‌های فاکتور -->
-            @if (invoiceItems.Any())
+            <!-- ==================== مرحله ۱: اطلاعات و سبد خرید ==================== -->
+            @if (currentStep == 1)
             {
-                <table style="width: 100%; border-collapse: collapse; margin-bottom: 1rem; font-size: 0.9rem;">
-                    <thead>
-                        <tr style="border-bottom: 1px solid var(--border-color); color: var(--text-muted);">
-                            <th style="text-align: right; padding: 0.5rem;">شرح کالا</th>
-                            <th style="text-align: center; padding: 0.5rem; width: 80px;">تعداد</th>
-                            <th style="text-align: right; padding: 0.5rem; width: 160px;">فی (ریال)</th>
-                            <th style="text-align: right; padding: 0.5rem; width: 180px;">مبلغ کل (ریال)</th>
-                            <th style="text-align: center; padding: 0.5rem; width: 60px;">حذف</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @foreach (var item in invoiceItems)
+                <!-- ردیف اول: مشتری، تلفن، نوع سند، شماره -->
+                <div style="display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
+                    <div style="position: relative;">
+                        <label style="display: block; margin-bottom: 0.3rem; color: var(--text-muted); font-size: 0.85rem;">
+                            نام خریدار / شرکت *
+                            @if (newInvoice.CustomerId.HasValue)
+                            {
+                                <span style="color: var(--success); font-size: 0.75rem; margin-right: 0.4rem;">✓ از CRM</span>
+                            }
+                        </label>
+                        <input type="text"
+                               value="@newInvoice.CustomerName"
+                               @oninput="OnCustomerNameInput"
+                               @onfocus="OnCustomerFocus"
+                               @onblur="OnCustomerBlur"
+                               class="input-field"
+                               style="margin-bottom: 0;"
+                               placeholder="جستجو در CRM یا نام جدید..." />
+                        @if (showCustomerSuggestions && customerSuggestions.Any())
                         {
-                            <tr style="border-bottom: 1px dashed var(--border-color);">
-                                <td style="padding: 0.5rem; font-weight: bold;">@item.ProductName</td>
-                                <td style="text-align: center; padding: 0.5rem; font-family: var(--font-en);">@item.Quantity</td>
-                                <td style="text-align: right; padding: 0.5rem; font-family: var(--font-en); color: var(--text-muted);">@item.UnitPrice.ToString("N0")</td>
-                                <td style="text-align: right; padding: 0.5rem; font-family: var(--font-en); color: var(--primary-color); font-weight: bold;">@((item.UnitPrice * (decimal)item.Quantity).ToString("N0"))</td>
-                                <td style="text-align: center; padding: 0.5rem;">
-                                    <button style="background: none; border: none; color: var(--danger); cursor: pointer;" @onclick="() => RemoveItem(item)">✕</button>
-                                </td>
-                            </tr>
+                            <div style="position: absolute; top: 100%; right: 0; left: 0; z-index: 500; background: var(--surface-color); border: 1px solid var(--primary-color); border-top: none; max-height: 220px; overflow-y: auto; direction: rtl;">
+                                @foreach (var cust in customerSuggestions)
+                                {
+                                    <div @onmousedown="() => SelectCustomer(cust)"
+                                         style="padding: 0.6rem 1rem; cursor: pointer; border-bottom: 1px solid var(--border-color);">
+                                        <div style="font-weight: bold; font-size: 0.9rem; color: var(--text-main);">@cust.FullName</div>
+                                        @if (!string.IsNullOrEmpty(cust.CompanyName))
+                                        {
+                                            <div style="font-size: 0.78rem; color: var(--accent-color);">@cust.CompanyName</div>
+                                        }
+                                        @if (!string.IsNullOrEmpty(cust.PhoneNumber))
+                                        {
+                                            <div style="font-size: 0.78rem; color: var(--text-muted); font-family: var(--font-en);">@cust.PhoneNumber</div>
+                                        }
+                                    </div>
+                                }
+                            </div>
                         }
-                    </tbody>
-                </table>
-            }
-
-            <!-- بخش مالی و پرداخت -->
-            <div style="background-color: var(--bg-color); padding: 1.25rem; border-radius: var(--radius-md); border: 1px solid var(--border-color); margin-bottom: 1rem;">
-                <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 1rem; font-weight: bold;">محاسبات مالی و نحوه تسویه:</p>
-
-                <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
-                    <div>
-                        <label style="display: block; margin-bottom: 0.3rem; color: var(--text-muted); font-size: 0.8rem;">جمع کل اقلام (ریال)</label>
-                        <input readonly value="@newInvoice.TotalAmount.ToString("N0")" class="input-field" style="margin-bottom: 0; font-family: var(--font-en); background: var(--surface-color); color: var(--text-main);" />
                     </div>
                     <div>
-                        <label style="display: block; margin-bottom: 0.3rem; color: var(--text-muted); font-size: 0.8rem;">تخفیف (ریال)</label>
-                        <input type="number" value="@newInvoice.Discount" @oninput="OnDiscountInput" class="input-field" style="margin-bottom: 0; font-family: var(--font-en);" min="0" />
+                        <label style="display: block; margin-bottom: 0.3rem; color: var(--text-muted); font-size: 0.85rem;">موبایل خریدار</label>
+                        <input type="text" @bind="newInvoice.CustomerPhone" class="input-field" style="margin-bottom: 0; font-family: var(--font-en); direction: ltr;" placeholder="09xxxxxxxxx" />
                     </div>
                     <div>
-                        <label style="display: block; margin-bottom: 0.3rem; color: var(--text-muted); font-size: 0.8rem;">مالیات ارزش افزوده @((defaultTaxRate * 100).ToString("0"))% (ریال)</label>
-                        <input readonly value="@newInvoice.Tax.ToString("N0")" class="input-field" style="margin-bottom: 0; font-family: var(--font-en); background: var(--surface-color);" />
-                    </div>
-                </div>
-
-                <div style="display: flex; align-items: center; justify-content: space-between; background: var(--surface-color); padding: 0.75rem 1rem; border-radius: var(--radius-md); border: 1px solid var(--success); margin-bottom: 1rem;">
-                    <span style="font-weight: bold; color: var(--success);">مبلغ نهایی قابل پرداخت:</span>
-                    <span class="industrial-num" style="font-size: 1.3rem; color: var(--success);">@newInvoice.FinalAmount.ToString("N0") ریال</span>
-                </div>
-
-                <!-- نوع پرداخت -->
-                <div style="display: grid; grid-template-columns: 1fr @(newInvoice.PaymentMethod == "ترکیبی" ? "1fr" : "2fr"); gap: 1rem; margin-bottom: @(newInvoice.PaymentMethod != "نقدی" ? "1rem" : "0");">
-                    <div>
-                        <label style="display: block; margin-bottom: 0.3rem; color: var(--text-muted); font-size: 0.8rem;">نحوه تسویه حساب</label>
-                        <select value="@newInvoice.PaymentMethod" @onchange="OnPaymentMethodChanged" class="input-field" style="margin-bottom: 0; border-color: var(--primary-color);">
-                            <option value="نقدی">نقدی</option>
-                            <option value="چکی">چکی (صیاد)</option>
-                            <option value="ترکیبی">ترکیبی (نقد + چک)</option>
+                        <label style="display: block; margin-bottom: 0.3rem; color: var(--text-muted); font-size: 0.85rem;">نوع سند</label>
+                        <select @bind="newInvoice.InvoiceType" class="input-field" style="margin-bottom: 0; border-color: var(--primary-color);">
+                            <option value="پیش‌فاکتور">پیش‌فاکتور</option>
+                            <option value="فاکتور رسمی">فاکتور رسمی</option>
+                            <option value="حواله خروج">حواله خروج انبار</option>
                         </select>
                     </div>
-                    @if (newInvoice.PaymentMethod == "ترکیبی")
+                    <div>
+                        <label style="display: block; margin-bottom: 0.3rem; color: var(--text-muted); font-size: 0.85rem;">شماره سند (سیستمی)</label>
+                        <input type="text" readonly value="@newInvoice.InvoiceNumber" class="input-field" style="margin-bottom: 0; background-color: var(--bg-color); color: var(--primary-color); font-family: var(--font-en);" />
+                    </div>
+                </div>
+
+                <!-- ردیف دوم: پروژه و آدرس -->
+                <div style="display: grid; grid-template-columns: 1fr 2fr; gap: 1rem; margin-bottom: 1.5rem;">
+                    <div>
+                        <label style="display: block; margin-bottom: 0.3rem; color: var(--text-muted); font-size: 0.85rem;">نام پروژه / ارجاع</label>
+                        <input type="text" @bind="newInvoice.ProjectName" class="input-field" style="margin-bottom: 0;" />
+                    </div>
+                    <div>
+                        <label style="display: block; margin-bottom: 0.3rem; color: var(--text-muted); font-size: 0.85rem;">آدرس دقیق تحویل</label>
+                        <input type="text" @bind="newInvoice.DeliveryAddress" class="input-field" style="margin-bottom: 0;" />
+                    </div>
+                </div>
+
+                <!-- انتخاب کالا از انبار -->
+                <div style="background-color: var(--bg-color); padding: 1rem; border-radius: var(--radius-md); border: 1px solid var(--border-color); margin-bottom: 1rem;">
+                    <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 0.75rem; font-weight: bold;">انتخاب کالا از انبار:</p>
+                    @if (!availableProducts.Any())
                     {
-                        <div>
-                            <label style="display: block; margin-bottom: 0.3rem; color: var(--text-muted); font-size: 0.8rem;">مبلغ نقدی (ریال)</label>
-                            <input type="number" @bind="newInvoice.CashAmount" class="input-field" style="margin-bottom: 0; font-family: var(--font-en);" min="0" />
+                        <p style="color: var(--danger); font-size: 0.85rem; margin-bottom: 0.5rem;">هیچ محصولی با موجودی مثبت یافت نشد. ابتدا انبار را شارژ کنید.</p>
+                    }
+                    <div style="display: flex; gap: 1rem; align-items: flex-end;">
+                        <div style="flex-grow: 1;">
+                            <select @bind="selectedProductId" class="input-field" style="margin-bottom: 0;" disabled="@(!availableProducts.Any())">
+                                <option value="0">-- انتخاب قطعه از انبار --</option>
+                                @foreach (var p in availableProducts)
+                                {
+                                    <option value="@p.Id">@p.Code — @p.Name (موجودی: @p.StockQuantity @p.Unit) | @p.Price.ToString("N0") ریال</option>
+                                }
+                            </select>
                         </div>
+                        <div style="width: 130px;">
+                            <input type="number" @bind="quantityToAdd" class="input-field" style="margin-bottom: 0; font-family: var(--font-en);" placeholder="تعداد" min="1" step="1" />
+                        </div>
+                        <button class="btn-primary" @onclick="AddItem" style="padding: 0.75rem 1rem; white-space: nowrap;" disabled="@(selectedProductId == 0 || !availableProducts.Any())">+ افزودن</button>
+                    </div>
+                    @if (!string.IsNullOrEmpty(itemError))
+                    {
+                        <div style="color: var(--danger); font-size: 0.85rem; margin-top: 0.5rem; font-weight: bold;">@itemError</div>
                     }
                 </div>
 
-                @if (newInvoice.PaymentMethod == "چکی" || newInvoice.PaymentMethod == "ترکیبی")
+                <!-- آیتم‌های فاکتور -->
+                @if (invoiceItems.Any())
                 {
-                    <div style="display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 1rem;">
+                    <table style="width: 100%; border-collapse: collapse; margin-bottom: 1rem; font-size: 0.9rem;">
+                        <thead>
+                            <tr style="border-bottom: 1px solid var(--border-color); color: var(--text-muted);">
+                                <th style="text-align: right; padding: 0.5rem;">شرح کالا</th>
+                                <th style="text-align: center; padding: 0.5rem; width: 80px;">تعداد</th>
+                                <th style="text-align: right; padding: 0.5rem; width: 160px;">فی (ریال)</th>
+                                <th style="text-align: right; padding: 0.5rem; width: 180px;">مبلغ کل (ریال)</th>
+                                <th style="text-align: center; padding: 0.5rem; width: 60px;">حذف</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var item in invoiceItems)
+                            {
+                                <tr style="border-bottom: 1px dashed var(--border-color);">
+                                    <td style="padding: 0.5rem; font-weight: bold;">@item.ProductName</td>
+                                    <td style="text-align: center; padding: 0.5rem; font-family: var(--font-en);">@item.Quantity</td>
+                                    <td style="text-align: right; padding: 0.5rem; font-family: var(--font-en); color: var(--text-muted);">@item.UnitPrice.ToString("N0")</td>
+                                    <td style="text-align: right; padding: 0.5rem; font-family: var(--font-en); color: var(--primary-color); font-weight: bold;">@((item.UnitPrice * (decimal)item.Quantity).ToString("N0"))</td>
+                                    <td style="text-align: center; padding: 0.5rem;">
+                                        <button style="background: none; border: none; color: var(--danger); cursor: pointer;" @onclick="() => RemoveItem(item)">✕</button>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                }
+
+                <!-- بخش مالی و پرداخت -->
+                <div style="background-color: var(--bg-color); padding: 1.25rem; border-radius: var(--radius-md); border: 1px solid var(--border-color); margin-bottom: 1rem;">
+                    <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 1rem; font-weight: bold;">محاسبات مالی و نحوه تسویه:</p>
+
+                    <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
                         <div>
-                            <label style="display: block; margin-bottom: 0.3rem; color: var(--text-muted); font-size: 0.8rem;">مبلغ چک (ریال)</label>
-                            <input type="number" @bind="newInvoice.CheckAmount" class="input-field" style="margin-bottom: 0; font-family: var(--font-en);" min="0" />
+                            <label style="display: block; margin-bottom: 0.3rem; color: var(--text-muted); font-size: 0.8rem;">جمع کل اقلام (ریال)</label>
+                            <input readonly value="@newInvoice.TotalAmount.ToString("N0")" class="input-field" style="margin-bottom: 0; font-family: var(--font-en); background: var(--surface-color); color: var(--text-main);" />
                         </div>
                         <div>
-                            <label style="display: block; margin-bottom: 0.3rem; color: var(--text-muted); font-size: 0.8rem;">شماره صیاد (16 رقم)</label>
-                            <input type="text" @bind="newInvoice.CheckNumber" class="input-field" style="margin-bottom: 0; font-family: var(--font-en); direction: ltr;" placeholder="1234-5678-9012-3456" />
+                            <label style="display: block; margin-bottom: 0.3rem; color: var(--text-muted); font-size: 0.8rem;">تخفیف (ریال)</label>
+                            <input type="number" value="@newInvoice.Discount" @oninput="OnDiscountInput" class="input-field" style="margin-bottom: 0; font-family: var(--font-en);" min="0" />
                         </div>
                         <div>
-                            <label style="display: block; margin-bottom: 0.3rem; color: var(--text-muted); font-size: 0.8rem;">بانک صادرکننده</label>
-                            <input type="text" @bind="newInvoice.CheckBankName" class="input-field" style="margin-bottom: 0;" placeholder="مثال: ملی" />
-                        </div>
-                        <div>
-                            <label style="display: block; margin-bottom: 0.3rem; color: var(--text-muted); font-size: 0.8rem;">تاریخ سررسید</label>
-                            <input type="date" @bind="newInvoice.CheckDueDate" class="input-field" style="margin-bottom: 0; font-family: var(--font-en);" />
+                            <label style="display: block; margin-bottom: 0.3rem; color: var(--text-muted); font-size: 0.8rem;">مالیات ارزش افزوده @((defaultTaxRate * 100).ToString("0"))% (ریال)</label>
+                            <input readonly value="@newInvoice.Tax.ToString("N0")" class="input-field" style="margin-bottom: 0; font-family: var(--font-en); background: var(--surface-color);" />
                         </div>
                     </div>
+
+                    <div style="display: flex; align-items: center; justify-content: space-between; background: var(--surface-color); padding: 0.75rem 1rem; border-radius: var(--radius-md); border: 1px solid var(--success); margin-bottom: 1rem;">
+                        <span style="font-weight: bold; color: var(--success);">مبلغ نهایی قابل پرداخت:</span>
+                        <span class="industrial-num" style="font-size: 1.3rem; color: var(--success);">@newInvoice.FinalAmount.ToString("N0") ریال</span>
+                    </div>
+
+                    <div style="display: grid; grid-template-columns: 1fr @(newInvoice.PaymentMethod == "ترکیبی" ? "1fr" : "2fr"); gap: 1rem; margin-bottom: @(newInvoice.PaymentMethod != "نقدی" ? "1rem" : "0");">
+                        <div>
+                            <label style="display: block; margin-bottom: 0.3rem; color: var(--text-muted); font-size: 0.8rem;">نحوه تسویه حساب</label>
+                            <select value="@newInvoice.PaymentMethod" @onchange="OnPaymentMethodChanged" class="input-field" style="margin-bottom: 0; border-color: var(--primary-color);">
+                                <option value="نقدی">نقدی</option>
+                                <option value="چکی">چکی (صیاد)</option>
+                                <option value="ترکیبی">ترکیبی (نقد + چک)</option>
+                            </select>
+                        </div>
+                        @if (newInvoice.PaymentMethod == "ترکیبی")
+                        {
+                            <div>
+                                <label style="display: block; margin-bottom: 0.3rem; color: var(--text-muted); font-size: 0.8rem;">مبلغ نقدی (ریال)</label>
+                                <input type="number" @bind="newInvoice.CashAmount" class="input-field" style="margin-bottom: 0; font-family: var(--font-en);" min="0" />
+                            </div>
+                        }
+                    </div>
+
+                    @if (newInvoice.PaymentMethod == "چکی" || newInvoice.PaymentMethod == "ترکیبی")
+                    {
+                        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 1rem;">
+                            <div>
+                                <label style="display: block; margin-bottom: 0.3rem; color: var(--text-muted); font-size: 0.8rem;">مبلغ چک (ریال)</label>
+                                <input type="number" @bind="newInvoice.CheckAmount" class="input-field" style="margin-bottom: 0; font-family: var(--font-en);" min="0" />
+                            </div>
+                            <div>
+                                <label style="display: block; margin-bottom: 0.3rem; color: var(--text-muted); font-size: 0.8rem;">شماره صیاد (16 رقم)</label>
+                                <input type="text" @bind="newInvoice.CheckNumber" class="input-field" style="margin-bottom: 0; font-family: var(--font-en); direction: ltr;" placeholder="1234-5678-9012-3456" />
+                            </div>
+                            <div>
+                                <label style="display: block; margin-bottom: 0.3rem; color: var(--text-muted); font-size: 0.8rem;">بانک صادرکننده</label>
+                                <input type="text" @bind="newInvoice.CheckBankName" class="input-field" style="margin-bottom: 0;" placeholder="مثال: ملی" />
+                            </div>
+                            <div>
+                                <label style="display: block; margin-bottom: 0.3rem; color: var(--text-muted); font-size: 0.8rem;">تاریخ سررسید</label>
+                                <input type="date" @bind="newInvoice.CheckDueDate" class="input-field" style="margin-bottom: 0; font-family: var(--font-en);" />
+                            </div>
+                        </div>
+                    }
+                </div>
+            }
+
+            <!-- ==================== مرحله ۲: وضعیت تولید ==================== -->
+            @if (currentStep == 2)
+            {
+                <div style="min-height: 280px;">
+                    <div style="background: var(--bg-color); border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 1.5rem; margin-bottom: 1.5rem;">
+                        <h3 style="color: var(--text-main); font-size: 1rem; font-weight: bold; margin-bottom: 1rem;">آیا این سفارش نیاز به تولید دارد؟</h3>
+
+                        <div style="display: flex; gap: 1rem; margin-bottom: 1.5rem;">
+                            <button @onclick="() => { newInvoice.NeedsProduction = false; }"
+                                    style="flex: 1; padding: 1rem; border-radius: var(--radius-md); cursor: pointer; font-family: var(--font-fa); font-weight: bold; font-size: 0.95rem; transition: all 0.2s;
+                                           background: @(!newInvoice.NeedsProduction ? "var(--success)" : "var(--bg-color)");
+                                           color: @(!newInvoice.NeedsProduction ? "#fff" : "var(--text-muted)");
+                                           border: 2px solid @(!newInvoice.NeedsProduction ? "var(--success)" : "var(--border-color)");">
+                                ✓ خیر — مستقیم از انبار کسر می‌شود
+                            </button>
+                            <button @onclick="() => { newInvoice.NeedsProduction = true; }"
+                                    style="flex: 1; padding: 1rem; border-radius: var(--radius-md); cursor: pointer; font-family: var(--font-fa); font-weight: bold; font-size: 0.95rem; transition: all 0.2s;
+                                           background: @(newInvoice.NeedsProduction ? "var(--primary-color)" : "var(--bg-color)");
+                                           color: @(newInvoice.NeedsProduction ? "#000" : "var(--text-muted)");
+                                           border: 2px solid @(newInvoice.NeedsProduction ? "var(--primary-color)" : "var(--border-color)");">
+                                ⚙ بله — نیاز به تولید / ساخت دارد
+                            </button>
+                        </div>
+
+                        @if (newInvoice.NeedsProduction)
+                        {
+                            <div style="border-top: 1px solid var(--border-color); padding-top: 1.25rem;">
+                                <div style="margin-bottom: 1rem;">
+                                    <label style="display: block; margin-bottom: 0.4rem; color: var(--text-muted); font-size: 0.85rem;">مشخصات فنی و یادداشت خط تولید</label>
+                                    <textarea @bind="newInvoice.ProductionNotes" class="input-field" style="min-height: 100px; resize: vertical; margin-bottom: 0;" placeholder="مشخصات ابعاد، رنگ، مدل، تعداد هر قطعه و سایر دستورالعمل‌های فنی برای تیم تولید..."></textarea>
+                                </div>
+
+                                <div style="background: rgba(245,158,11,0.08); border: 1px solid rgba(245,158,11,0.3); border-radius: var(--radius-md); padding: 1rem;">
+                                    <div style="display: flex; align-items: center; gap: 0.75rem; cursor: pointer;" @onclick="() => newInvoice.AutoCreateProductionOrder = !newInvoice.AutoCreateProductionOrder">
+                                        <div style="width: 20px; height: 20px; border-radius: 4px; border: 2px solid var(--primary-color); display: flex; align-items: center; justify-content: center; background: @(newInvoice.AutoCreateProductionOrder ? "var(--primary-color)" : "transparent"); flex-shrink: 0;">
+                                            @if (newInvoice.AutoCreateProductionOrder) { <span style="color: #000; font-size: 0.75rem; font-weight: bold;">✓</span> }
+                                        </div>
+                                        <div>
+                                            <div style="font-weight: bold; color: var(--primary-color); font-size: 0.9rem;">ارجاع خودکار به خط تولید</div>
+                                            <div style="font-size: 0.78rem; color: var(--text-muted); margin-top: 0.2rem;">بلافاصله پس از ثبت فاکتور، یک دستور کار تولید نیز به صورت خودکار در تب سفارشات تولید ایجاد می‌شود.</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        }
+                        else
+                        {
+                            <div style="background: rgba(16,185,129,0.08); border: 1px solid rgba(16,185,129,0.2); border-radius: var(--radius-md); padding: 1rem; text-align: center; color: var(--success); font-size: 0.9rem;">
+                                موجودی انبار کافی است — پس از ثبت فاکتور، اقلام از انبار کسر خواهند شد.
+                            </div>
+                        }
+                    </div>
+                </div>
+            }
+
+            <!-- ==================== مرحله ۳: لجستیک و ارسال ==================== -->
+            @if (currentStep == 3)
+            {
+                <div style="min-height: 280px;">
+                    <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 1.25rem;">این اطلاعات اختیاری هستند و می‌توانند بعداً از طریق دکمه «وضعیت» نیز تکمیل شوند.</p>
+
+                    <div style="background: var(--bg-color); border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 1.25rem; margin-bottom: 1.25rem;">
+                        <h3 style="font-size: 0.9rem; color: var(--text-muted); font-weight: bold; margin-bottom: 1rem;">مشخصات حمل‌ونقل و راننده</h3>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
+                            <div>
+                                <label style="display: block; margin-bottom: 0.3rem; color: var(--text-muted); font-size: 0.82rem;">نام راننده / باربری</label>
+                                <input type="text" @bind="newInvoice.DriverName" class="input-field" style="margin-bottom: 0;" placeholder="نام راننده" />
+                            </div>
+                            <div>
+                                <label style="display: block; margin-bottom: 0.3rem; color: var(--text-muted); font-size: 0.82rem;">شماره موبایل راننده</label>
+                                <input type="text" @bind="newInvoice.DriverPhone" class="input-field" style="margin-bottom: 0; font-family: var(--font-en); direction: ltr;" placeholder="09xxxxxxxxx" />
+                            </div>
+                            <div>
+                                <label style="display: block; margin-bottom: 0.3rem; color: var(--text-muted); font-size: 0.82rem;">پلاک خودرو</label>
+                                <input type="text" @bind="newInvoice.VehiclePlate" class="input-field" style="margin-bottom: 0;" placeholder="مثال: 12ج456-11" />
+                            </div>
+                        </div>
+                    </div>
+
+                    <div style="background: var(--bg-color); border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 1.25rem; margin-bottom: 1.25rem;">
+                        <h3 style="font-size: 0.9rem; color: var(--text-muted); font-weight: bold; margin-bottom: 1rem;">زمان‌بندی ارسال و تحویل</h3>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
+                            <div>
+                                <label style="display: block; margin-bottom: 0.3rem; color: var(--text-muted); font-size: 0.82rem;">تاریخ ارسال (بارگیری)</label>
+                                <input type="date" @bind="newInvoice.DispatchDate" class="input-field" style="margin-bottom: 0; font-family: var(--font-en);" />
+                            </div>
+                            <div>
+                                <label style="display: block; margin-bottom: 0.3rem; color: var(--text-muted); font-size: 0.82rem;">تاریخ تحویل پیش‌بینی شده</label>
+                                <input type="date" @bind="newInvoice.DeliveryDate" class="input-field" style="margin-bottom: 0; font-family: var(--font-en);" />
+                            </div>
+                        </div>
+                        <div>
+                            <label style="display: block; margin-bottom: 0.3rem; color: var(--text-muted); font-size: 0.82rem;">آدرس تحویل (در صورت تغییر)</label>
+                            <input type="text" @bind="newInvoice.DeliveryAddress" class="input-field" style="margin-bottom: 0;" />
+                        </div>
+                    </div>
+                </div>
+            }
+
+            <!-- ==================== مرحله ۴: خدمات پس از فروش ==================== -->
+            @if (currentStep == 4)
+            {
+                <div style="min-height: 280px;">
+                    <div style="background: var(--bg-color); border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 1.25rem; margin-bottom: 1.25rem;">
+                        <h3 style="font-size: 0.9rem; color: var(--text-muted); font-weight: bold; margin-bottom: 1rem;">گارانتی و شرایط پشتیبانی</h3>
+                        <div style="display: grid; grid-template-columns: 1fr 3fr; gap: 1rem; margin-bottom: 1rem;">
+                            <div>
+                                <label style="display: block; margin-bottom: 0.3rem; color: var(--text-muted); font-size: 0.82rem;">مدت گارانتی (ماه)</label>
+                                <input type="number" @bind="newInvoice.WarrantyMonths" class="input-field" style="margin-bottom: 0; font-family: var(--font-en);" min="0" max="120" placeholder="0 = بدون گارانتی" />
+                            </div>
+                            <div>
+                                <label style="display: block; margin-bottom: 0.3rem; color: var(--text-muted); font-size: 0.82rem;">دستورالعمل نصب و راه‌اندازی</label>
+                                <input type="text" @bind="newInvoice.InstallationNotes" class="input-field" style="margin-bottom: 0;" placeholder="نکات نصب، شرایط محیطی، هشدارها..." />
+                            </div>
+                        </div>
+                    </div>
+
+                    <div style="background: var(--bg-color); border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 1.25rem; margin-bottom: 1.25rem;">
+                        <h3 style="font-size: 0.9rem; color: var(--text-muted); font-weight: bold; margin-bottom: 0.75rem;">شرایط پیگیری و خدمات پس از فروش</h3>
+                        <textarea @bind="newInvoice.AfterSaleNotes" class="input-field" style="min-height: 90px; resize: vertical; margin-bottom: 0;" placeholder="روش ارتباط برای گزارش خرابی، شرایط تعویض قطعات، خدمات بازدید دوره‌ای..."></textarea>
+                    </div>
+
+                    <div style="background: var(--bg-color); border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 1.25rem;">
+                        <h3 style="font-size: 0.9rem; color: var(--text-muted); font-weight: bold; margin-bottom: 0.75rem;">یادداشت نهایی (اختیاری)</h3>
+                        <textarea @bind="newInvoice.Notes" class="input-field" style="min-height: 70px; resize: vertical; margin-bottom: 0;" placeholder="هرگونه توضیح اضافی برای ثبت در فاکتور..."></textarea>
+                    </div>
+                </div>
+            }
+
+            <!-- دکمه‌های ناوبری بین مراحل -->
+            <div style="display: flex; gap: 1rem; margin-top: 1.75rem; flex-shrink: 0; border-top: 1px solid var(--border-color); padding-top: 1.25rem;">
+                @if (currentStep > 1)
+                {
+                    <button style="padding: 0.75rem 1.5rem; border-radius: var(--radius-md); cursor: pointer; font-family: var(--font-fa); font-weight: bold; font-size: 0.9rem; background: var(--bg-color); color: var(--text-main); border: 1px solid var(--border-color); white-space: nowrap;" @onclick="PrevStep">
+                        ← بازگشت
+                    </button>
+                }
+                else
+                {
+                    <button style="flex: 1; padding: 0.75rem; border-radius: var(--radius-md); cursor: pointer; font-family: var(--font-fa); font-weight: bold; background: transparent; border: 1px solid var(--border-color); color: var(--text-main);" @onclick="CloseModal">انصراف</button>
+                }
+
+                @if (currentStep < 4)
+                {
+                    <button class="btn-primary" style="flex: 1;" @onclick="NextStep">
+                        ادامه — مرحله @(currentStep + 1) از 4 →
+                    </button>
+                }
+                else
+                {
+                    <button class="btn-primary" style="flex: 1;" @onclick="SaveInvoice" disabled="@isSaving">
+                        @if (isSaving) { <span>در حال ثبت...</span> } else { <span>✓ ثبت نهایی در سیستم</span> }
+                    </button>
                 }
             </div>
 
-            <!-- یادداشت -->
-            <div style="margin-bottom: 1.5rem;">
-                <label style="display: block; margin-bottom: 0.3rem; color: var(--text-muted); font-size: 0.85rem;">یادداشت / توضیحات (اختیاری)</label>
-                <textarea @bind="newInvoice.Notes" class="input-field" style="min-height: 55px; resize: vertical; margin-bottom: 0;" placeholder="توضیحات اضافی..."></textarea>
-            </div>
-
-            <div style="display: flex; gap: 1rem; margin-top: 0.5rem;">
-                <button class="btn-primary" style="flex: 1;" @onclick="SaveInvoice" disabled="@(!invoiceItems.Any() || isSaving)">
-                    @if (isSaving) { <span>در حال ثبت...</span> } else { <span>ثبت در سیستم</span> }
-                </button>
-                <button style="flex: 1; background: transparent; border: 1px solid var(--border-color); color: var(--text-main); border-radius: var(--radius-md); cursor: pointer; font-weight: bold; padding: 0.6rem;" @onclick="CloseModal">انصراف</button>
-            </div>
         </div>
     </div>
 }
 
-<!-- Modal وضعیت و لجستیک -->
+<!-- ================== Modal وضعیت و لجستیک ================== -->
 @if (isDispatchModalOpen)
 {
     <div style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background-color: rgba(9,9,11,0.92); z-index: 200; display: flex; align-items: center; justify-content: center;">
@@ -405,7 +588,7 @@
     private bool isLoading = true;
     private bool isSaving = false;
 
-    // فیلترهای خودکار - setter ها ApplyFilter را فراخوانی می‌کنند
+    // ── فیلترها (setter → ApplyFilter) ──────────────────────────────────────
     private string _searchQuery = "";
     private string searchQuery { get => _searchQuery; set { _searchQuery = value; ApplyFilter(); } }
 
@@ -422,6 +605,8 @@
     private string modalError = "";
     private string dispatchError = "";
 
+    // ── ویزارد ───────────────────────────────────────────────────────────────
+    private int currentStep = 1;
     private bool isModalOpen = false;
     private Invoice newInvoice = new();
     private int selectedProductId = 0;
@@ -434,6 +619,7 @@
     private record TempInvoiceItem(int ProductId, string ProductName, double Quantity, decimal UnitPrice);
     private List<TempInvoiceItem> invoiceItems = new();
 
+    // ── OnInitializedAsync ───────────────────────────────────────────────────
     protected override async Task OnInitializedAsync()
     {
         _db = await DbFactory.CreateDbContextAsync();
@@ -495,16 +681,20 @@
         StateHasChanged();
     }
 
+    // ── باز کردن مودال ───────────────────────────────────────────────────────
     private async Task OpenAddModal()
     {
-        // modal را فوری نمایش بده - داده‌های async بعداً بارگذاری می‌شوند
+        currentStep = 1;
         newInvoice = new Invoice
         {
             InvoiceNumber = "F-" + DateTime.Now.ToString("yyMMddHHmm"),
             InvoiceDate = DateTime.Now,
             Status = "ثبت اولیه",
             InvoiceType = "پیش‌فاکتور",
-            PaymentMethod = "نقدی"
+            PaymentMethod = "نقدی",
+            NeedsProduction = false,
+            AutoCreateProductionOrder = false,
+            WarrantyMonths = 0
         };
         invoiceItems = new();
         itemError = "";
@@ -516,7 +706,6 @@
         isModalOpen = true;
         await InvokeAsync(StateHasChanged);
 
-        // بارگذاری شماره فاکتور و لیست مشتریان CRM بعد از نمایش modal
         try
         {
             var count = (await _db.Invoices.CountAsync()) + 1;
@@ -530,19 +719,45 @@
         catch { crmCustomers = new List<Customer>(); }
     }
 
-    private async Task<string> GenerateInvoiceNumber()
+    // ── ناوبری بین مراحل ─────────────────────────────────────────────────────
+    private bool ValidateCurrentStep()
     {
-        try
+        modalError = "";
+        if (currentStep == 1)
         {
-            await using var db = await DbFactory.CreateDbContextAsync();
-            var count = (await db.Invoices.CountAsync()) + 1;
-            return $"F-{count:D5}";
+            if (string.IsNullOrWhiteSpace(newInvoice.CustomerName))
+            {
+                modalError = "لطفاً نام خریدار را وارد کنید.";
+                return false;
+            }
+            if (!invoiceItems.Any())
+            {
+                modalError = "حداقل یک کالا باید به فاکتور اضافه شود.";
+                return false;
+            }
         }
-        catch { return "F-" + DateTime.Now.ToString("ddHHmmss"); }
+        return true;
     }
 
-    // ─── Customer Autocomplete ───────────────────────────────────────────────
+    private void NextStep()
+    {
+        if (ValidateCurrentStep() && currentStep < 4)
+        {
+            currentStep++;
+            modalError = "";
+        }
+    }
 
+    private void PrevStep()
+    {
+        if (currentStep > 1)
+        {
+            currentStep--;
+            modalError = "";
+        }
+    }
+
+    // ── Autocomplete مشتری ────────────────────────────────────────────────────
     private async Task OnCustomerNameInput(ChangeEventArgs e)
     {
         var val = e.Value?.ToString() ?? "";
@@ -594,11 +809,11 @@
         customerSuggestions.Clear();
     }
 
-    // ─── Invoice Items ───────────────────────────────────────────────────────
-
+    // ── آیتم‌های فاکتور ───────────────────────────────────────────────────────
     private async Task CloseModal()
     {
         isModalOpen = false;
+        currentStep = 1;
         modalError = "";
         showCustomerSuggestions = false;
         await InvokeAsync(StateHasChanged);
@@ -657,12 +872,11 @@
         else if (newInvoice.PaymentMethod == "چکی") { newInvoice.CashAmount = 0; newInvoice.CheckAmount = newInvoice.FinalAmount; }
     }
 
-    // ─── Save Invoice ────────────────────────────────────────────────────────
-
+    // ── ذخیره فاکتور ─────────────────────────────────────────────────────────
     private async Task SaveInvoice()
     {
-        if (string.IsNullOrWhiteSpace(newInvoice.CustomerName)) { modalError = "لطفاً نام خریدار را وارد کنید."; return; }
-        if (!invoiceItems.Any()) { modalError = "حداقل یک کالا باید به فاکتور اضافه شود."; return; }
+        if (string.IsNullOrWhiteSpace(newInvoice.CustomerName)) { modalError = "نام خریدار الزامی است."; return; }
+        if (!invoiceItems.Any()) { modalError = "حداقل یک کالا باید انتخاب شود."; return; }
 
         isSaving = true;
         modalError = "";
@@ -687,6 +901,27 @@
             await SyncWithCrm(saveDb);
 
             await saveDb.SaveChangesAsync();
+
+            // ارجاع خودکار به تب سفارشات تولید
+            if (newInvoice.NeedsProduction && newInvoice.AutoCreateProductionOrder)
+            {
+                var orderCount = await saveDb.Orders.CountAsync() + 1;
+                saveDb.Orders.Add(new Order
+                {
+                    OrderNumber = $"ORD-{orderCount:D5}",
+                    InvoiceId = newInvoice.Id,
+                    InvoiceNumber = newInvoice.InvoiceNumber,
+                    CustomerName = newInvoice.CustomerName,
+                    OrderDate = DateTime.Now,
+                    ExpectedDelivery = newInvoice.DeliveryDate ?? DateTime.Now.AddDays(7),
+                    Status = "در انتظار بررسی",
+                    ItemsJson = newInvoice.ItemsJson,
+                    TechnicalSpecs = newInvoice.ProductionNotes,
+                    TotalAmount = newInvoice.FinalAmount
+                });
+                await saveDb.SaveChangesAsync();
+            }
+
             await RefreshData();
             await CloseModal();
         }
@@ -694,11 +929,11 @@
         finally { isSaving = false; }
     }
 
+    // ── یکپارچه‌سازی با CRM (Auto-Capture) ────────────────────────────────────
     private async Task SyncWithCrm(AppDbContext saveDb)
     {
         if (newInvoice.CustomerId.HasValue)
         {
-            // مشتری از CRM انتخاب شده - فقط آمار به‌روزرسانی می‌شود
             var existing = await saveDb.Customers.FindAsync(newInvoice.CustomerId.Value);
             if (existing != null)
             {
@@ -711,11 +946,10 @@
         }
         else if (!string.IsNullOrWhiteSpace(newInvoice.CustomerPhone))
         {
-            // جستجو بر اساس تلفن
             var existing = await saveDb.Customers.FirstOrDefaultAsync(c => c.PhoneNumber == newInvoice.CustomerPhone);
             if (existing == null)
             {
-                var newCrm = new Customer
+                saveDb.Customers.Add(new Customer
                 {
                     FullName = newInvoice.CustomerName,
                     PhoneNumber = newInvoice.CustomerPhone,
@@ -724,8 +958,7 @@
                     TotalPurchaseAmount = newInvoice.FinalAmount,
                     TotalInvoiceCount = 1,
                     IsActive = true
-                };
-                saveDb.Customers.Add(newCrm);
+                });
             }
             else
             {
@@ -738,7 +971,6 @@
         }
         else if (!string.IsNullOrWhiteSpace(newInvoice.CustomerName))
         {
-            // بدون تلفن - جستجو بر اساس نام
             var existing = await saveDb.Customers.FirstOrDefaultAsync(c => c.FullName == newInvoice.CustomerName);
             if (existing == null)
             {
@@ -762,8 +994,7 @@
         }
     }
 
-    // ─── Dispatch Modal ──────────────────────────────────────────────────────
-
+    // ── Dispatch Modal ────────────────────────────────────────────────────────
     private async Task OpenDispatchModal(Invoice inv)
     {
         activeInvoice = new Invoice
@@ -815,8 +1046,7 @@
         await InvokeAsync(StateHasChanged);
     }
 
-    // ─── Helpers ─────────────────────────────────────────────────────────────
-
+    // ── Helpers ───────────────────────────────────────────────────────────────
     private void PrintInvoice(int id) => NavManager.NavigateTo($"/print/invoice/{id}");
 
     private async Task DeleteInvoice(int id)
@@ -840,7 +1070,7 @@
             ApplyFilter();
             StateHasChanged();
         }
-        catch (Exception ex) { pageError = $"خطا در به‌روزرسانی لیست: {ex.Message}"; }
+        catch (Exception ex) { pageError = $"خطا در به‌روزرسانی: {ex.Message}"; }
     }
 
     public void Dispose() => _db?.Dispose();
