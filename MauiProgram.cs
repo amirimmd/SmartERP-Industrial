@@ -1,4 +1,4 @@
-﻿using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging;
 using Microsoft.EntityFrameworkCore;
 using SmartERP.Infrastructure;
 using System.IO;
@@ -30,41 +30,107 @@ namespace SmartERP
                 Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
                 "SmartERP_Database.db");
 
-            // IDbContextFactory pattern - الگوی صحیح برای MAUI Blazor Hybrid
-            // هر عملیات DB یک instance مجزا می‌گیرد → هیچ‌وقت concurrent access error نمی‌دهد
             builder.Services.AddDbContextFactory<AppDbContext>(options =>
                 options.UseSqlite($"Data Source={dbPath}"));
 
-            // AddTransient برای backward compatibility با صفحاتی که AppDbContext inject می‌کنند
             builder.Services.AddTransient<AppDbContext>(sp =>
                 sp.GetRequiredService<IDbContextFactory<AppDbContext>>().CreateDbContext());
 
             var app = builder.Build();
 
-            // ایجاد و اعتبارسنجی schema دیتابیس هنگام استارت
             var dbFactory = app.Services.GetRequiredService<IDbContextFactory<AppDbContext>>();
             using (var db = dbFactory.CreateDbContext())
             {
                 try
                 {
-                    // اگر از مایگریشن استفاده نمی‌کنید و دیتابیس فقط لوکال است، 
-                    // ساختار دیتابیس در صورت عدم وجود ایجاد می‌شود.
+                    // ایجاد جداول جدید در نصب تازه
                     db.Database.EnsureCreated();
-                    
-                    // بررسی وجود جداول (بدون FirstOrDefault برای جلوگیری از خطاهای ستون‌های جدید در SQLite)
-                    // اگر ستون جدیدی اضافه کرده‌اید و از EF Core Migrations استفاده نمی‌کنید،
-                    // در محیط پروداکشن SQLite اجازه تغییر Schema را به راحتی نمی‌دهد و باید دستی هندل شود 
-                    // یا پایگاه داده ریست شود. اما برای جلوگیری از فاجعه حذف ناخواسته داده‌ها، متد EnsureDeleted حذف شد.
+
+                    // اعمال ستون‌های جدید روی دیتابیس‌های موجود (مهاجرت بدون حذف داده)
+                    ApplySchemaUpgrades(db);
                 }
                 catch (Exception ex)
                 {
-                    // خطا در کنسول دیباگ لاگ می‌شود تا متوجه مشکل دیتابیس شوید.
-                    // هرگز db.Database.EnsureDeleted() را در اینجا صدا نزنید!
-                    System.Diagnostics.Debug.WriteLine($"Database Initialization Error: {ex.Message}");
+                    System.Diagnostics.Debug.WriteLine($"Database Init Error: {ex.Message}");
                 }
             }
 
             return app;
+        }
+
+        private static void ApplySchemaUpgrades(AppDbContext db)
+        {
+            // هر ALTER TABLE در صورت وجود ستون با try/catch نادیده گرفته می‌شود.
+            // این روش ایمن‌ترین راه برای به‌روزرسانی SQLite بدون از دست دادن داده است.
+
+            var upgrades = new[]
+            {
+                // ── Products ──────────────────────────────────────────────
+                "ALTER TABLE \"Products\" ADD COLUMN \"Description\" TEXT NOT NULL DEFAULT ''",
+                "ALTER TABLE \"Products\" ADD COLUMN \"Category\" TEXT NOT NULL DEFAULT 'محصول نهایی'",
+                "ALTER TABLE \"Products\" ADD COLUMN \"SubCategory\" TEXT NOT NULL DEFAULT ''",
+                "ALTER TABLE \"Products\" ADD COLUMN \"Width\" REAL NOT NULL DEFAULT 0",
+                "ALTER TABLE \"Products\" ADD COLUMN \"Height\" REAL NOT NULL DEFAULT 0",
+                "ALTER TABLE \"Products\" ADD COLUMN \"Depth\" REAL NOT NULL DEFAULT 0",
+                "ALTER TABLE \"Products\" ADD COLUMN \"Weight\" REAL NOT NULL DEFAULT 0",
+                "ALTER TABLE \"Products\" ADD COLUMN \"Material\" TEXT NOT NULL DEFAULT ''",
+                "ALTER TABLE \"Products\" ADD COLUMN \"Color\" TEXT NOT NULL DEFAULT ''",
+                "ALTER TABLE \"Products\" ADD COLUMN \"VariantsJson\" TEXT NOT NULL DEFAULT '[]'",
+                "ALTER TABLE \"Products\" ADD COLUMN \"ImagesJson\" TEXT NOT NULL DEFAULT '[]'",
+                "ALTER TABLE \"Products\" ADD COLUMN \"PurchasePrice\" TEXT NOT NULL DEFAULT '0'",
+                "ALTER TABLE \"Products\" ADD COLUMN \"MinSalePrice\" TEXT NOT NULL DEFAULT '0'",
+                "ALTER TABLE \"Products\" ADD COLUMN \"MinStockAlert\" REAL NOT NULL DEFAULT 5",
+                "ALTER TABLE \"Products\" ADD COLUMN \"IsActive\" INTEGER NOT NULL DEFAULT 1",
+                "ALTER TABLE \"Products\" ADD COLUMN \"CreatedAt\" TEXT NOT NULL DEFAULT '2024-01-01 00:00:00'",
+
+                // ── Customers ─────────────────────────────────────────────
+                "ALTER TABLE \"Customers\" ADD COLUMN \"City\" TEXT NOT NULL DEFAULT ''",
+                "ALTER TABLE \"Customers\" ADD COLUMN \"Province\" TEXT NOT NULL DEFAULT ''",
+                "ALTER TABLE \"Customers\" ADD COLUMN \"LeadSource\" TEXT NOT NULL DEFAULT ''",
+                "ALTER TABLE \"Customers\" ADD COLUMN \"ReferredBy\" TEXT NOT NULL DEFAULT ''",
+
+                // ── Invoices ──────────────────────────────────────────────
+                "ALTER TABLE \"Invoices\" ADD COLUMN \"CurrentStep\" INTEGER NOT NULL DEFAULT 1",
+                "ALTER TABLE \"Invoices\" ADD COLUMN \"Step1Notes\" TEXT NOT NULL DEFAULT ''",
+                "ALTER TABLE \"Invoices\" ADD COLUMN \"Step2Notes\" TEXT NOT NULL DEFAULT ''",
+                "ALTER TABLE \"Invoices\" ADD COLUMN \"Step3Notes\" TEXT NOT NULL DEFAULT ''",
+                "ALTER TABLE \"Invoices\" ADD COLUMN \"Step4Notes\" TEXT NOT NULL DEFAULT ''",
+                "ALTER TABLE \"Invoices\" ADD COLUMN \"Step5Notes\" TEXT NOT NULL DEFAULT ''",
+                "ALTER TABLE \"Invoices\" ADD COLUMN \"Step6Notes\" TEXT NOT NULL DEFAULT ''",
+                "ALTER TABLE \"Invoices\" ADD COLUMN \"ReceivedInGoodCondition\" INTEGER NOT NULL DEFAULT 0",
+                "ALTER TABLE \"Invoices\" ADD COLUMN \"ReceiverName\" TEXT NOT NULL DEFAULT ''",
+                "ALTER TABLE \"Invoices\" ADD COLUMN \"ProductionDate\" TEXT",
+                "ALTER TABLE \"Invoices\" ADD COLUMN \"ProductionDeadline\" TEXT",
+                "ALTER TABLE \"Invoices\" ADD COLUMN \"IsUrgentProduction\" INTEGER NOT NULL DEFAULT 0",
+                "ALTER TABLE \"Invoices\" ADD COLUMN \"InstallerPersonnelId\" INTEGER",
+                "ALTER TABLE \"Invoices\" ADD COLUMN \"InstallerName\" TEXT NOT NULL DEFAULT ''",
+                "ALTER TABLE \"Invoices\" ADD COLUMN \"InstallationDateTime\" TEXT",
+                "ALTER TABLE \"Invoices\" ADD COLUMN \"InstallationNotes\" TEXT NOT NULL DEFAULT ''",
+                "ALTER TABLE \"Invoices\" ADD COLUMN \"AfterSaleNotes\" TEXT NOT NULL DEFAULT ''",
+
+                // ── CompanySettings ───────────────────────────────────────
+                "ALTER TABLE \"CompanySettings\" ADD COLUMN \"LegalName\" TEXT NOT NULL DEFAULT ''",
+                "ALTER TABLE \"CompanySettings\" ADD COLUMN \"TaxId\" TEXT NOT NULL DEFAULT ''",
+                "ALTER TABLE \"CompanySettings\" ADD COLUMN \"SecondaryPhone\" TEXT NOT NULL DEFAULT ''",
+                "ALTER TABLE \"CompanySettings\" ADD COLUMN \"Website\" TEXT NOT NULL DEFAULT ''",
+                "ALTER TABLE \"CompanySettings\" ADD COLUMN \"Email\" TEXT NOT NULL DEFAULT ''",
+                "ALTER TABLE \"CompanySettings\" ADD COLUMN \"FooterNote\" TEXT NOT NULL DEFAULT ''",
+                "ALTER TABLE \"CompanySettings\" ADD COLUMN \"CeoSignatureBase64\" TEXT NOT NULL DEFAULT ''",
+                "ALTER TABLE \"CompanySettings\" ADD COLUMN \"DefaultTheme\" TEXT NOT NULL DEFAULT 'dark'",
+                "ALTER TABLE \"CompanySettings\" ADD COLUMN \"CardNumber\" TEXT NOT NULL DEFAULT ''",
+            };
+
+            foreach (var sql in upgrades)
+            {
+                try
+                {
+                    db.Database.ExecuteSqlRaw(sql);
+                }
+                catch
+                {
+                    // ستون از قبل وجود دارد — نادیده گرفته می‌شود
+                }
+            }
         }
     }
 }

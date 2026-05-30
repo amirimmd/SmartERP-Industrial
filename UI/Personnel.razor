@@ -1,0 +1,325 @@
+@page "/personnel"
+@implements IDisposable
+@inject IDbContextFactory<AppDbContext> DbFactory
+
+@{
+    // نام‌گذاری مستعار برای جلوگیری از تداخل با نام این صفحه
+}
+
+<div class="module-header">
+    <div style="display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:2rem;">
+        <div>
+            <h1 style="color:var(--primary-color);font-weight:800;font-size:1.8rem;margin-bottom:0.4rem;">پرسنل و نصابان</h1>
+            <p style="color:var(--text-muted);margin:0;font-size:0.9rem;">مدیریت کارکنان، نصابان و تکنیسین‌ها</p>
+        </div>
+        <button class="btn-primary" @onclick="OpenAddModal">+ افزودن پرسنل جدید</button>
+    </div>
+
+    @if (!string.IsNullOrEmpty(pageError))
+    {
+        <div style="padding:0.75rem 1rem;background:rgba(239,68,68,0.1);border:1px solid var(--danger);border-radius:var(--radius-md);color:var(--danger);font-size:0.88rem;margin-bottom:1rem;">@pageError</div>
+    }
+
+    <!-- فیلتر -->
+    <div class="card" style="margin-bottom:1.5rem;padding:1rem 1.5rem;">
+        <div style="display:grid;grid-template-columns:2fr 1fr 1fr auto;gap:0.75rem;align-items:flex-end;">
+            <div>
+                <label style="font-size:0.8rem;color:var(--text-muted);display:block;margin-bottom:0.3rem;">جستجو (نام، کد ملی، تلفن)</label>
+                <input type="text" @bind="searchQuery" @bind:event="oninput" placeholder="جستجو..." class="input-field" style="margin-bottom:0;" />
+            </div>
+            <div>
+                <label style="font-size:0.8rem;color:var(--text-muted);display:block;margin-bottom:0.3rem;">نقش</label>
+                <select @bind="filterRole" class="input-field" style="margin-bottom:0;">
+                    <option value="">همه نقش‌ها</option>
+                    <option>نصاب</option><option>تکنیسین</option><option>راننده</option>
+                    <option>مدیر تولید</option><option>اداری</option><option>نگهبان</option>
+                </select>
+            </div>
+            <div>
+                <label style="font-size:0.8rem;color:var(--text-muted);display:block;margin-bottom:0.3rem;">وضعیت</label>
+                <select @bind="filterStatus" class="input-field" style="margin-bottom:0;">
+                    <option value="">همه</option>
+                    <option>فعال</option><option>غیرفعال</option><option>در مرخصی</option>
+                </select>
+            </div>
+            <button style="padding:0.75rem 1rem;border-radius:var(--radius-md);cursor:pointer;font-family:var(--font-fa);font-size:0.85rem;background:var(--bg-color);color:var(--text-muted);border:1px solid var(--border-color);" @onclick="ClearFilters">پاک</button>
+        </div>
+        <div style="margin-top:0.5rem;font-size:0.8rem;color:var(--text-muted);">
+            نمایش <span class="industrial-num" style="color:var(--primary-color);">@filtered.Count</span> از <span class="industrial-num">@allPersonnel.Count</span> نفر
+        </div>
+    </div>
+
+    @if (isLoading)
+    {
+        <div class="card" style="padding:4rem;text-align:center;"><div class="loader-pulse-ring" style="margin:0 auto;"></div></div>
+    }
+    else if (!filtered.Any())
+    {
+        <div class="card" style="padding:4rem;text-align:center;color:var(--text-muted);">هیچ پرسنلی با این مشخصات یافت نشد.</div>
+    }
+    else
+    {
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:1.25rem;">
+            @foreach (SmartERP.Core.Personnel p in filtered)
+            {
+                <div class="card" style="padding:1.25rem;position:relative;">
+                    <div style="position:absolute;top:1rem;left:1rem;">
+                        <span style="font-size:0.72rem;padding:0.2rem 0.5rem;border-radius:3px;background:@GetStatusBg(p.Status);color:@GetStatusColor(p.Status);">@p.Status</span>
+                    </div>
+                    <div style="display:flex;align-items:center;gap:1rem;margin-bottom:1rem;margin-left:60px;">
+                        <div style="width:52px;height:52px;border-radius:50%;background:var(--bg-color);border:2px solid var(--border-color);display:flex;align-items:center;justify-content:center;overflow:hidden;flex-shrink:0;">
+                            @if (!string.IsNullOrEmpty(p.AvatarBase64))
+                            {
+                                <img src="data:image/jpeg;base64,@p.AvatarBase64" style="width:100%;height:100%;object-fit:cover;" />
+                            }
+                            else
+                            {
+                                <span style="color:var(--primary-color);font-weight:800;font-size:1.3rem;">@(p.FullName.Length > 0 ? p.FullName[0].ToString() : "؟")</span>
+                            }
+                        </div>
+                        <div>
+                            <div style="font-weight:700;font-size:1rem;color:var(--text-main);">@p.FullName</div>
+                            <div style="font-size:0.8rem;color:var(--primary-color);margin-top:0.15rem;">@p.Role</div>
+                        </div>
+                    </div>
+                    <div style="display:flex;flex-direction:column;gap:0.4rem;font-size:0.82rem;color:var(--text-muted);margin-bottom:1rem;">
+                        @if (!string.IsNullOrEmpty(p.PhoneNumber))
+                        {
+                            <div><span class="industrial-num">📞 @p.PhoneNumber</span></div>
+                        }
+                        @if (!string.IsNullOrEmpty(p.Skills))
+                        {
+                            <div>✓ @p.Skills</div>
+                        }
+                    </div>
+                    <div style="display:flex;gap:0.5rem;">
+                        <button style="flex:1;padding:0.45rem;border-radius:var(--radius-md);cursor:pointer;font-family:var(--font-fa);font-size:0.8rem;background:var(--bg-color);color:var(--text-main);border:1px solid var(--border-color);" @onclick="() => OpenEditModal(p)">ویرایش</button>
+                        <button style="padding:0.45rem 0.75rem;border-radius:var(--radius-md);cursor:pointer;font-size:0.8rem;background:none;color:var(--danger);border:1px solid rgba(239,68,68,0.3);" @onclick="() => DeletePersonnel(p.Id)">حذف</button>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+</div>
+
+<!-- مودال افزودن/ویرایش -->
+@if (isModalOpen)
+{
+    <div style="position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(9,9,11,0.93);z-index:200;display:flex;align-items:center;justify-content:center;padding:1rem;" @onclick="CloseModal">
+        <div class="card" style="width:100%;max-width:580px;max-height:92vh;overflow-y:auto;border-top:3px solid var(--primary-color);" @onclick:stopPropagation="true">
+
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.5rem;border-bottom:1px solid var(--border-color);padding-bottom:1rem;">
+                <h2 style="font-size:1.2rem;color:var(--text-main);font-weight:800;">@(editingId==0 ? "افزودن پرسنل جدید" : "ویرایش پرسنل")</h2>
+                <button style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:1.5rem;" @onclick="CloseModal">✕</button>
+            </div>
+
+            @if (!string.IsNullOrEmpty(modalError)) { <div style="padding:0.75rem 1rem;background:rgba(239,68,68,0.1);border:1px solid var(--danger);border-radius:var(--radius-md);color:var(--danger);font-size:0.88rem;margin-bottom:1rem;">@modalError</div> }
+
+            <!-- آواتار -->
+            <div style="display:flex;align-items:center;gap:1.5rem;margin-bottom:1.5rem;padding:1rem;background:var(--bg-color);border-radius:var(--radius-md);border:1px solid var(--border-color);">
+                <div style="width:64px;height:64px;border-radius:50%;background:var(--surface-color);border:2px solid var(--border-color);display:flex;align-items:center;justify-content:center;overflow:hidden;flex-shrink:0;">
+                    @if (!string.IsNullOrEmpty(formAvatar))
+                    {
+                        <img src="data:image/jpeg;base64,@formAvatar" style="width:100%;height:100%;object-fit:cover;" />
+                    }
+                    else
+                    {
+                        <span style="color:var(--primary-color);font-weight:800;font-size:1.5rem;">@(formName.Length > 0 ? formName[0].ToString() : "؟")</span>
+                    }
+                </div>
+                <div>
+                    <p style="font-size:0.8rem;color:var(--text-muted);margin-bottom:0.5rem;">تصویر پرسنل (اختیاری)</p>
+                    <InputFile OnChange="OnAvatarSelected" accept="image/*" style="font-family:var(--font-fa);font-size:0.8rem;color:var(--text-muted);" />
+                </div>
+            </div>
+
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1rem;">
+                <div><label style="display:block;margin-bottom:0.3rem;color:var(--text-muted);font-size:0.82rem;">نام و نام خانوادگی *</label><input type="text" @bind="formName" class="input-field" style="margin-bottom:0;" /></div>
+                <div><label style="display:block;margin-bottom:0.3rem;color:var(--text-muted);font-size:0.82rem;">نقش / سمت *</label>
+                    <select @bind="formRole" class="input-field" style="margin-bottom:0;">
+                        <option>نصاب</option><option>تکنیسین</option><option>راننده</option>
+                        <option>مدیر تولید</option><option>اداری</option><option>نگهبان</option>
+                    </select>
+                </div>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1rem;">
+                <div><label style="display:block;margin-bottom:0.3rem;color:var(--text-muted);font-size:0.82rem;">شماره موبایل</label><input type="text" @bind="formPhone" class="input-field" style="margin-bottom:0;direction:ltr;font-family:var(--font-en);" /></div>
+                <div><label style="display:block;margin-bottom:0.3rem;color:var(--text-muted);font-size:0.82rem;">کد ملی</label><input type="text" @bind="formNationalId" class="input-field" style="margin-bottom:0;direction:ltr;font-family:var(--font-en);" /></div>
+            </div>
+            <div style="margin-bottom:1rem;">
+                <label style="display:block;margin-bottom:0.3rem;color:var(--text-muted);font-size:0.82rem;">مهارت‌ها (با ویرگول)</label>
+                <input type="text" @bind="formSkills" class="input-field" style="margin-bottom:0;" placeholder="نصب درب، جوشکاری" />
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1rem;">
+                <div><label style="display:block;margin-bottom:0.3rem;color:var(--text-muted);font-size:0.82rem;">وضعیت</label>
+                    <select @bind="formStatus" class="input-field" style="margin-bottom:0;">
+                        <option>فعال</option><option>غیرفعال</option><option>در مرخصی</option>
+                    </select>
+                </div>
+                <div><label style="display:block;margin-bottom:0.3rem;color:var(--text-muted);font-size:0.82rem;">تاریخ استخدام</label><input type="date" @bind="formHireDate" class="input-field" style="margin-bottom:0;font-family:var(--font-en);" /></div>
+            </div>
+            <div style="margin-bottom:1.5rem;">
+                <label style="display:block;margin-bottom:0.3rem;color:var(--text-muted);font-size:0.82rem;">یادداشت</label>
+                <textarea @bind="formNotes" class="input-field" style="min-height:70px;resize:vertical;margin-bottom:0;"></textarea>
+            </div>
+
+            <div style="display:flex;gap:1rem;border-top:1px solid var(--border-color);padding-top:1.25rem;">
+                <button class="btn-primary" style="flex:1;" @onclick="SavePersonnel" disabled="@isSaving">
+                    @if (isSaving) { <span>در حال ذخیره...</span> } else { <span>ذخیره</span> }
+                </button>
+                <button style="flex:1;padding:0.6rem;border-radius:var(--radius-md);cursor:pointer;font-family:var(--font-fa);font-weight:bold;background:transparent;border:1px solid var(--border-color);color:var(--text-main);" @onclick="CloseModal">انصراف</button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private AppDbContext _db = null!;
+    private List<SmartERP.Core.Personnel> allPersonnel = new();
+    private List<SmartERP.Core.Personnel> filtered = new();
+    private bool isLoading = true;
+    private bool isSaving = false;
+    private bool isModalOpen = false;
+    private int editingId = 0;
+    private string pageError = "";
+    private string modalError = "";
+
+    private string _searchQuery = "";
+    private string searchQuery { get => _searchQuery; set { _searchQuery = value; ApplyFilter(); } }
+    private string _filterRole = "";
+    private string filterRole { get => _filterRole; set { _filterRole = value; ApplyFilter(); } }
+    private string _filterStatus = "";
+    private string filterStatus { get => _filterStatus; set { _filterStatus = value; ApplyFilter(); } }
+
+    // Flat form fields — avoid the naming conflict with form variable type
+    private string formName = "";
+    private string formRole = "نصاب";
+    private string formPhone = "";
+    private string formNationalId = "";
+    private string formSkills = "";
+    private string formAvatar = "";
+    private string formStatus = "فعال";
+    private string formNotes = "";
+    private DateTime formHireDate = DateTime.Now;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _db = await DbFactory.CreateDbContextAsync();
+        await LoadData();
+    }
+
+    private async Task LoadData()
+    {
+        isLoading = true;
+        try
+        {
+            allPersonnel = await _db.Personnel.AsNoTracking()
+                .OrderByDescending(p => p.IsActive).ThenBy(p => p.FullName)
+                .ToListAsync();
+            ApplyFilter();
+        }
+        catch (Exception ex) { pageError = $"خطا: {ex.Message}"; }
+        finally { isLoading = false; }
+    }
+
+    private void ApplyFilter()
+    {
+        var q = allPersonnel.AsEnumerable();
+        if (!string.IsNullOrEmpty(_filterRole)) q = q.Where(p => p.Role == _filterRole);
+        if (!string.IsNullOrEmpty(_filterStatus)) q = q.Where(p => p.Status == _filterStatus);
+        if (!string.IsNullOrWhiteSpace(_searchQuery))
+        {
+            var s = _searchQuery.ToLower();
+            q = q.Where(p => p.FullName.ToLower().Contains(s) || p.PhoneNumber.Contains(s) || p.NationalId.Contains(s) || p.Skills.ToLower().Contains(s));
+        }
+        filtered = q.ToList();
+    }
+
+    private void ClearFilters() { _searchQuery = ""; _filterRole = ""; _filterStatus = ""; filtered = allPersonnel.ToList(); StateHasChanged(); }
+
+    private void OpenAddModal()
+    {
+        editingId = 0;
+        formName = ""; formRole = "نصاب"; formPhone = ""; formNationalId = "";
+        formSkills = ""; formAvatar = ""; formStatus = "فعال"; formNotes = ""; formHireDate = DateTime.Now;
+        modalError = ""; isModalOpen = true;
+    }
+
+    private void OpenEditModal(SmartERP.Core.Personnel p)
+    {
+        editingId = p.Id;
+        formName = p.FullName; formRole = p.Role; formPhone = p.PhoneNumber;
+        formNationalId = p.NationalId; formSkills = p.Skills; formAvatar = p.AvatarBase64;
+        formStatus = p.Status; formNotes = p.Notes; formHireDate = p.HireDate;
+        modalError = ""; isModalOpen = true;
+    }
+
+    private async Task CloseModal() { isModalOpen = false; await InvokeAsync(StateHasChanged); }
+
+    private async Task OnAvatarSelected(InputFileChangeEventArgs e)
+    {
+        try
+        {
+            var file = e.File;
+            if (file.Size > 2 * 1024 * 1024) { modalError = "حجم تصویر نباید بیشتر از ۲ مگابایت باشد."; return; }
+            using var ms = new System.IO.MemoryStream();
+            await file.OpenReadStream(2 * 1024 * 1024).CopyToAsync(ms);
+            formAvatar = Convert.ToBase64String(ms.ToArray());
+        }
+        catch { modalError = "خطا در بارگذاری تصویر."; }
+    }
+
+    private async Task SavePersonnel()
+    {
+        if (string.IsNullOrWhiteSpace(formName)) { modalError = "نام الزامی است."; return; }
+        isSaving = true; modalError = "";
+        try
+        {
+            await using var db = await DbFactory.CreateDbContextAsync();
+            if (editingId == 0)
+            {
+                db.Personnel.Add(new SmartERP.Core.Personnel
+                {
+                    FullName = formName, Role = formRole, PhoneNumber = formPhone,
+                    NationalId = formNationalId, Skills = formSkills, AvatarBase64 = formAvatar,
+                    Status = formStatus, Notes = formNotes, HireDate = formHireDate,
+                    IsActive = formStatus == "فعال"
+                });
+            }
+            else
+            {
+                var existing = await db.Personnel.FindAsync(editingId);
+                if (existing != null)
+                {
+                    existing.FullName = formName; existing.Role = formRole; existing.PhoneNumber = formPhone;
+                    existing.NationalId = formNationalId; existing.Skills = formSkills;
+                    existing.AvatarBase64 = formAvatar; existing.Status = formStatus;
+                    existing.Notes = formNotes; existing.HireDate = formHireDate;
+                    existing.IsActive = formStatus == "فعال";
+                }
+            }
+            await db.SaveChangesAsync();
+            await LoadData();
+            isModalOpen = false;
+        }
+        catch (Exception ex) { modalError = $"خطا: {ex.Message}"; }
+        finally { isSaving = false; }
+    }
+
+    private async Task DeletePersonnel(int id)
+    {
+        try
+        {
+            await using var db = await DbFactory.CreateDbContextAsync();
+            var p = await db.Personnel.FindAsync(id);
+            if (p != null) { db.Personnel.Remove(p); await db.SaveChangesAsync(); }
+            await LoadData();
+        }
+        catch (Exception ex) { pageError = $"خطا در حذف: {ex.Message}"; }
+    }
+
+    private string GetStatusColor(string status) => status switch { "فعال" => "var(--success)", "در مرخصی" => "var(--primary-color)", _ => "var(--text-muted)" };
+    private string GetStatusBg(string status) => status switch { "فعال" => "rgba(16,185,129,0.15)", "در مرخصی" => "rgba(245,158,11,0.15)", _ => "rgba(161,161,170,0.1)" };
+
+    public void Dispose() => _db?.Dispose();
+}

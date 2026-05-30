@@ -1,86 +1,133 @@
 @page "/products"
-@using SmartERP.Core
-@using SmartERP.Infrastructure
-@using Microsoft.EntityFrameworkCore
-@using System.Text.Json
-@using System.Net.Http
-@using System.Text
 @implements IDisposable
 @inject IDbContextFactory<AppDbContext> DbFactory
 
 <div class="module-header">
-    <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 2rem;">
+    <div style="display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:2rem;">
         <div>
-            <h1 style="color: var(--primary-color); font-weight: 800; font-size: 1.8rem; margin-bottom: 0.5rem;">انبار و محصولات</h1>
-            <p style="color: var(--text-muted); margin: 0; font-size: 0.95rem;">مدیریت موجودی قطعات و کاتالوگ فروش</p>
+            <h1 style="color:var(--primary-color);font-weight:800;font-size:1.8rem;margin-bottom:0.4rem;">انبار و محصولات</h1>
+            <p style="color:var(--text-muted);margin:0;font-size:0.9rem;">محصولات نهایی، مواد اولیه، قیمت‌گذاری و موجودی</p>
         </div>
-        <div style="display: flex; gap: 0.75rem; align-items: center;">
-            <button @onclick="SyncToWebsite" disabled="@(isSyncing || string.IsNullOrEmpty(webApiUrl))"
-                    style="padding: 0.6rem 1rem; border-radius: var(--radius-md); cursor: pointer; font-family: var(--font-fa); font-weight: bold; font-size: 0.85rem;
-                           background: @(isSyncing ? "var(--bg-color)" : "var(--surface-color)");
-                           color: @(string.IsNullOrEmpty(webApiUrl) ? "var(--text-muted)" : "var(--accent-color)");
-                           border: 1px solid @(string.IsNullOrEmpty(webApiUrl) ? "var(--border-color)" : "var(--accent-color)");
-                           opacity: @(string.IsNullOrEmpty(webApiUrl) ? "0.5" : "1");">
-                @(isSyncing ? "در حال ارسال..." : "ارسال به سایت")
-            </button>
-            <button class="btn-primary" @onclick="OpenAddModal">+ ثبت کالای جدید</button>
-        </div>
+        <button class="btn-primary" @onclick="OpenAddModal">+ افزودن کالا</button>
     </div>
 
     @if (!string.IsNullOrEmpty(pageError))
     {
-        <div class="alert-error">@pageError</div>
-    }
-    @if (!string.IsNullOrEmpty(syncResult))
-    {
-        <div class="@(syncResult.StartsWith("✓") ? "alert-success" : "alert-error")" style="margin-bottom: 1rem;">@syncResult</div>
+        <div style="padding:0.75rem 1rem;background:rgba(239,68,68,0.1);border:1px solid var(--danger);border-radius:var(--radius-md);color:var(--danger);font-size:0.88rem;margin-bottom:1rem;">@pageError</div>
     }
 
-    <div class="card" style="margin-bottom: 1.5rem; padding: 1rem 1.5rem; display: flex; gap: 1rem; align-items: center;">
-        <div style="flex-grow: 1;">
-            <input type="text" @bind="searchQuery" @bind:event="oninput" placeholder="جستجوی سریع قطعات (نام یا کد)..." class="input-field" style="margin-bottom: 0;" />
+    <!-- تب‌های دسته‌بندی -->
+    <div style="display:flex;gap:0;margin-bottom:1.5rem;border-bottom:1px solid var(--border-color);">
+        @foreach (var tab in new[] { "همه", "محصول نهایی", "مواد اولیه" })
+        {
+            <button @onclick="() => { activeTab = tab; ApplyFilter(); }"
+                    style="padding:0.7rem 1.5rem;border:none;border-bottom:2px solid @(activeTab==tab ? "var(--primary-color)" : "transparent");background:transparent;color:@(activeTab==tab ? "var(--primary-color)" : "var(--text-muted)");cursor:pointer;font-family:var(--font-fa);font-weight:@(activeTab==tab ? "bold" : "normal");font-size:0.9rem;">
+                @tab
+                <span class="industrial-num" style="font-size:0.75rem;margin-right:0.35rem;opacity:0.7;">(@(tab == "همه" ? allProducts.Count : allProducts.Count(p => p.Category == tab)))</span>
+            </button>
+        }
+    </div>
+
+    <!-- جستجو و فیلتر -->
+    <div class="card" style="margin-bottom:1.5rem;padding:1rem 1.5rem;">
+        <div style="display:grid;grid-template-columns:2fr 1fr 1fr auto;gap:0.75rem;align-items:flex-end;">
+            <div>
+                <label style="font-size:0.8rem;color:var(--text-muted);display:block;margin-bottom:0.3rem;">جستجو (نام، کد)</label>
+                <input type="text" @bind="searchQuery" @bind:event="oninput" placeholder="جستجو..." class="input-field" style="margin-bottom:0;" />
+            </div>
+            <div>
+                <label style="font-size:0.8rem;color:var(--text-muted);display:block;margin-bottom:0.3rem;">زیرگروه</label>
+                <select @bind="filterSubCat" class="input-field" style="margin-bottom:0;">
+                    <option value="">همه</option>
+                    <option>درب</option><option>چهارچوب</option><option>پروفیل</option>
+                    <option>پودر رنگ</option><option>ورق</option><option>یراق‌آلات</option>
+                </select>
+            </div>
+            <div>
+                <label style="font-size:0.8rem;color:var(--text-muted);display:block;margin-bottom:0.3rem;">موجودی</label>
+                <select @bind="filterStock" class="input-field" style="margin-bottom:0;">
+                    <option value="">همه</option>
+                    <option value="low">کم‌موجود</option>
+                    <option value="ok">کافی</option>
+                    <option value="zero">اتمام موجودی</option>
+                </select>
+            </div>
+            <button style="padding:0.75rem 1rem;border-radius:var(--radius-md);cursor:pointer;font-family:var(--font-fa);font-size:0.85rem;background:var(--bg-color);color:var(--text-muted);border:1px solid var(--border-color);" @onclick="ClearFilters">پاک</button>
         </div>
-        <div style="color: var(--text-muted); font-size: 0.9rem; white-space: nowrap;">
-            <span style="font-family: var(--font-en); color: var(--primary-color);">@filteredProducts.Count</span> قطعه
+        <div style="margin-top:0.5rem;font-size:0.8rem;color:var(--text-muted);">
+            <span class="industrial-num" style="color:var(--primary-color);">@filteredProducts.Count</span> کالا
+            — ارزش انبار:
+            <span class="industrial-num" style="color:var(--success);">@filteredProducts.Sum(p => p.Price * (decimal)p.StockQuantity).ToString("N0")</span> ریال
         </div>
     </div>
 
-    <div class="card" style="padding: 0; overflow-x: auto;">
-        <table class="industrial-table" style="width: 100%; border-collapse: collapse;">
+    <!-- جدول محصولات -->
+    <div class="card" style="padding:0;overflow-x:auto;">
+        <table style="width:100%;border-collapse:collapse;">
             <thead>
-                <tr>
-                    <th style="padding: 1.2rem 1.5rem; text-align: right;">کد قطعه</th>
-                    <th style="padding: 1.2rem 1.5rem; text-align: right;">شرح کالا</th>
-                    <th style="padding: 1.2rem 1.5rem; text-align: right;">موجودی انبار</th>
-                    <th style="padding: 1.2rem 1.5rem; text-align: right;">قیمت پایه (ریال)</th>
-                    <th style="padding: 1.2rem 1.5rem; text-align: center;">عملیات</th>
+                <tr style="border-bottom:1px solid var(--border-color);background:var(--bg-color);">
+                    <th style="padding:1rem 1.25rem;text-align:right;font-size:0.82rem;color:var(--text-muted);font-weight:600;">کالا</th>
+                    <th style="padding:1rem 1.25rem;text-align:right;font-size:0.82rem;color:var(--text-muted);font-weight:600;">دسته</th>
+                    <th style="padding:1rem 1.25rem;text-align:right;font-size:0.82rem;color:var(--text-muted);font-weight:600;">قیمت فروش (ریال)</th>
+                    <th style="padding:1rem 1.25rem;text-align:right;font-size:0.82rem;color:var(--text-muted);font-weight:600;">قیمت خرید (ریال)</th>
+                    <th style="padding:1rem 1.25rem;text-align:right;font-size:0.82rem;color:var(--text-muted);font-weight:600;">موجودی</th>
+                    <th style="padding:1rem 1.25rem;text-align:center;font-size:0.82rem;color:var(--text-muted);font-weight:600;">عملیات</th>
                 </tr>
             </thead>
             <tbody>
                 @if (isLoading)
                 {
-                    <tr><td colspan="5" style="padding: 3rem; text-align: center;"><div class="loader-pulse-ring" style="margin: 0 auto;"></div></td></tr>
+                    <tr><td colspan="6" style="padding:3rem;text-align:center;"><div class="loader-pulse-ring" style="margin:0 auto;"></div></td></tr>
                 }
                 else if (!filteredProducts.Any())
                 {
-                    <tr><td colspan="5" style="padding: 4rem 2rem; text-align: center; color: var(--text-muted);">محصولی یافت نشد.</td></tr>
+                    <tr><td colspan="6" style="padding:4rem;text-align:center;color:var(--text-muted);">کالایی یافت نشد.</td></tr>
                 }
                 else
                 {
-                    @foreach (var product in filteredProducts)
+                    @foreach (var p in filteredProducts)
                     {
-                        <tr class="table-row-hover">
-                            <td style="padding: 1rem 1.5rem; font-family: var(--font-en); color: var(--primary-color); font-weight: bold;">@product.Code</td>
-                            <td style="padding: 1rem 1.5rem; font-weight: bold; color: var(--text-main);">@product.Name</td>
-                            <td style="padding: 1rem 1.5rem;">
-                                <span style="font-family: var(--font-en); color: @(product.StockQuantity <= 5 ? "var(--danger)" : "var(--success)"); font-weight: bold;">@product.StockQuantity</span>
-                                <span style="font-size: 0.8rem; color: var(--text-muted); margin-right: 0.25rem;">@product.Unit</span>
-                                @if (product.StockQuantity <= 5) { <span style="font-size: 0.75rem; color: var(--danger); margin-right: 0.25rem;">(بحرانی)</span> }
+                        var isLow = p.StockQuantity <= p.MinStockAlert && p.StockQuantity > 0;
+                        <tr style="border-bottom:1px solid var(--border-color);">
+                            <td style="padding:1rem 1.25rem;">
+                                <div style="display:flex;align-items:center;gap:0.75rem;">
+                                    <div style="width:40px;height:40px;border-radius:var(--radius-md);background:var(--bg-color);border:1px solid var(--border-color);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+                                        <span class="industrial-num" style="font-size:0.65rem;color:var(--primary-color);">@(p.Code.Length > 6 ? p.Code[..6] : p.Code)</span>
+                                    </div>
+                                    <div>
+                                        <div style="font-weight:700;color:var(--text-main);font-size:0.9rem;">@p.Name</div>
+                                        @if (!string.IsNullOrEmpty(p.Description))
+                                        {
+                                            <div style="font-size:0.75rem;color:var(--text-muted);margin-top:0.1rem;">@p.Description</div>
+                                        }
+                                        @if (!string.IsNullOrEmpty(p.Color)) { <div style="font-size:0.72rem;color:var(--text-muted);">رنگ: @p.Color</div> }
+                                    </div>
+                                </div>
                             </td>
-                            <td style="padding: 1rem 1.5rem; font-family: var(--font-en); color: var(--text-main);">@product.Price.ToString("N0")</td>
-                            <td style="padding: 1rem 1.5rem; text-align: center;">
-                                <button style="background: none; border: none; color: var(--accent-color); cursor: pointer; padding: 0.4rem 0.6rem; font-weight: bold;" @onclick="() => OpenEditModal(product)">ویرایش</button>
-                                <button style="background: none; border: none; color: var(--danger); cursor: pointer; padding: 0.4rem;" @onclick="() => DeleteProduct(product.Id)">حذف</button>
+                            <td style="padding:1rem 1.25rem;">
+                                <span style="font-size:0.78rem;padding:0.2rem 0.5rem;border-radius:3px;background:@(p.Category=="مواد اولیه" ? "rgba(59,130,246,0.12)" : "rgba(245,158,11,0.12)");color:@(p.Category=="مواد اولیه" ? "var(--accent-color)" : "var(--primary-color)");">@p.Category</span>
+                                @if (!string.IsNullOrEmpty(p.SubCategory)) { <div style="font-size:0.75rem;color:var(--text-muted);margin-top:0.2rem;">@p.SubCategory</div> }
+                            </td>
+                            <td style="padding:1rem 1.25rem;">
+                                <div class="industrial-num" style="color:var(--success);font-weight:bold;">@p.Price.ToString("N0")</div>
+                                @if (p.MinSalePrice > 0) { <div class="industrial-num" style="font-size:0.75rem;color:var(--text-muted);">حداقل: @p.MinSalePrice.ToString("N0")</div> }
+                            </td>
+                            <td style="padding:1rem 1.25rem;">
+                                <div class="industrial-num" style="color:var(--text-muted);">@p.PurchasePrice.ToString("N0")</div>
+                            </td>
+                            <td style="padding:1rem 1.25rem;">
+                                <div style="display:flex;align-items:center;gap:0.4rem;">
+                                    <span class="industrial-num" style="font-weight:bold;color:@(p.StockQuantity==0 ? "var(--danger)" : isLow ? "var(--primary-color)" : "var(--success)");">@p.StockQuantity</span>
+                                    <span style="font-size:0.78rem;color:var(--text-muted);">@p.Unit</span>
+                                </div>
+                                @if (isLow) { <div style="font-size:0.7rem;color:var(--primary-color);">⚠ هشدار کم‌موجودی</div> }
+                                else if (p.StockQuantity == 0) { <div style="font-size:0.7rem;color:var(--danger);">اتمام موجودی</div> }
+                            </td>
+                            <td style="padding:1rem 1.25rem;text-align:center;">
+                                <div style="display:flex;gap:0.4rem;justify-content:center;">
+                                    <button style="background:var(--bg-color);border:1px solid var(--border-color);color:var(--text-main);cursor:pointer;padding:0.3rem 0.6rem;border-radius:var(--radius-md);font-size:0.8rem;" @onclick="() => OpenEditModal(p)">ویرایش</button>
+                                    <button style="background:none;border:1px solid rgba(239,68,68,0.3);color:var(--danger);cursor:pointer;padding:0.3rem 0.6rem;border-radius:var(--radius-md);font-size:0.8rem;" @onclick="() => DeleteProduct(p.Id)">حذف</button>
+                                </div>
                             </td>
                         </tr>
                     }
@@ -90,50 +137,96 @@
     </div>
 </div>
 
+<!-- مودال افزودن/ویرایش -->
 @if (isModalOpen)
 {
-    <div style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background-color: rgba(9,9,11,0.9); z-index: 100; display: flex; align-items: center; justify-content: center;" @onclick="CloseModal">
-        <div class="card" style="width: 100%; max-width: 500px; border-top: 3px solid var(--primary-color);" @onclick:stopPropagation="true">
-            <div style="margin-bottom: 1.5rem; border-bottom: 1px solid var(--border-color); padding-bottom: 1rem;">
-                <h2 style="font-size: 1.2rem; color: var(--text-main); font-weight: 800;">@(editingProduct.Id == 0 ? "ثبت کالای جدید" : "ویرایش کالا")</h2>
+    <div style="position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(9,9,11,0.93);z-index:200;display:flex;align-items:center;justify-content:center;padding:1rem;" @onclick="CloseModal">
+        <div class="card" style="width:100%;max-width:760px;max-height:94vh;overflow-y:auto;border-top:3px solid var(--primary-color);" @onclick:stopPropagation="true">
+
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.5rem;border-bottom:1px solid var(--border-color);padding-bottom:1rem;">
+                <h2 style="font-size:1.2rem;color:var(--text-main);font-weight:800;">@(editingId == 0 ? "افزودن کالای جدید" : "ویرایش کالا")</h2>
+                <button style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:1.5rem;" @onclick="CloseModal">✕</button>
             </div>
 
             @if (!string.IsNullOrEmpty(modalError))
             {
-                <div class="alert-error">@modalError</div>
+                <div style="padding:0.75rem 1rem;background:rgba(239,68,68,0.1);border:1px solid var(--danger);border-radius:var(--radius-md);color:var(--danger);font-size:0.88rem;margin-bottom:1rem;">@modalError</div>
             }
 
-            <div>
-                <label style="display: block; margin-bottom: 0.5rem; color: var(--text-muted); font-size: 0.85rem;">کد قطعه / سریال *</label>
-                <input type="text" @bind="editingProduct.Code" class="input-field" style="font-family: var(--font-en); direction: ltr;" />
-            </div>
-
-            <div>
-                <label style="display: block; margin-bottom: 0.5rem; color: var(--text-muted); font-size: 0.85rem;">نام کالا *</label>
-                <input type="text" @bind="editingProduct.Name" class="input-field" />
-            </div>
-
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
-                <div>
-                    <label style="display: block; margin-bottom: 0.5rem; color: var(--text-muted); font-size: 0.85rem;">موجودی</label>
-                    <input type="number" @bind="editingProduct.StockQuantity" class="input-field" style="font-family: var(--font-en);" min="0" />
+            <div style="background:var(--bg-color);border:1px solid var(--border-color);border-radius:var(--radius-md);padding:1.25rem;margin-bottom:1rem;">
+                <p style="font-size:0.8rem;color:var(--text-muted);font-weight:bold;margin-bottom:1rem;">اطلاعات پایه</p>
+                <div style="display:grid;grid-template-columns:1fr 2fr;gap:1rem;margin-bottom:1rem;">
+                    <div>
+                        <label style="display:block;margin-bottom:0.3rem;color:var(--text-muted);font-size:0.82rem;">کد کالا *</label>
+                        <input type="text" @bind="pForm.Code" class="input-field" style="margin-bottom:0;direction:ltr;font-family:var(--font-en);" placeholder="DOOR-001" />
+                    </div>
+                    <div>
+                        <label style="display:block;margin-bottom:0.3rem;color:var(--text-muted);font-size:0.82rem;">نام کالا *</label>
+                        <input type="text" @bind="pForm.Name" class="input-field" style="margin-bottom:0;" />
+                    </div>
                 </div>
-                <div>
-                    <label style="display: block; margin-bottom: 0.5rem; color: var(--text-muted); font-size: 0.85rem;">واحد شمارش</label>
-                    <input type="text" @bind="editingProduct.Unit" class="input-field" placeholder="عدد، متر، کیلو..." />
+                <div style="margin-bottom:1rem;">
+                    <label style="display:block;margin-bottom:0.3rem;color:var(--text-muted);font-size:0.82rem;">توضیحات</label>
+                    <input type="text" @bind="pForm.Description" class="input-field" style="margin-bottom:0;" />
+                </div>
+                <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:1rem;">
+                    <div>
+                        <label style="display:block;margin-bottom:0.3rem;color:var(--text-muted);font-size:0.82rem;">دسته اصلی *</label>
+                        <select @bind="pForm.Category" class="input-field" style="margin-bottom:0;border-color:var(--primary-color);">
+                            <option>محصول نهایی</option>
+                            <option>مواد اولیه</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label style="display:block;margin-bottom:0.3rem;color:var(--text-muted);font-size:0.82rem;">زیرگروه</label>
+                        <input type="text" @bind="pForm.SubCategory" list="subcat-list" class="input-field" style="margin-bottom:0;" />
+                        <datalist id="subcat-list"><option>درب</option><option>چهارچوب</option><option>پروفیل</option><option>پودر رنگ</option><option>ورق</option><option>یراق‌آلات</option></datalist>
+                    </div>
+                    <div>
+                        <label style="display:block;margin-bottom:0.3rem;color:var(--text-muted);font-size:0.82rem;">واحد اندازه‌گیری</label>
+                        <select @bind="pForm.Unit" class="input-field" style="margin-bottom:0;">
+                            <option>عدد</option><option>کیلوگرم</option><option>متر</option><option>متر مربع</option><option>لیتر</option>
+                        </select>
+                    </div>
                 </div>
             </div>
 
-            <div style="margin-bottom: 2rem;">
-                <label style="display: block; margin-bottom: 0.5rem; color: var(--text-muted); font-size: 0.85rem;">قیمت پایه (ریال)</label>
-                <input type="number" @bind="editingProduct.Price" class="input-field" style="font-family: var(--font-en); margin-bottom: 0;" min="0" />
+            <div style="background:var(--bg-color);border:1px solid var(--border-color);border-radius:var(--radius-md);padding:1.25rem;margin-bottom:1rem;">
+                <p style="font-size:0.8rem;color:var(--text-muted);font-weight:bold;margin-bottom:1rem;">مشخصات فیزیکی</p>
+                <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:1rem;margin-bottom:1rem;">
+                    <div><label style="display:block;margin-bottom:0.3rem;color:var(--text-muted);font-size:0.8rem;">عرض (cm)</label><input type="number" @bind="pForm.Width" class="input-field" style="margin-bottom:0;font-family:var(--font-en);" min="0" step="0.5" /></div>
+                    <div><label style="display:block;margin-bottom:0.3rem;color:var(--text-muted);font-size:0.8rem;">ارتفاع (cm)</label><input type="number" @bind="pForm.Height" class="input-field" style="margin-bottom:0;font-family:var(--font-en);" min="0" step="0.5" /></div>
+                    <div><label style="display:block;margin-bottom:0.3rem;color:var(--text-muted);font-size:0.8rem;">عمق (cm)</label><input type="number" @bind="pForm.Depth" class="input-field" style="margin-bottom:0;font-family:var(--font-en);" min="0" step="0.5" /></div>
+                    <div><label style="display:block;margin-bottom:0.3rem;color:var(--text-muted);font-size:0.8rem;">وزن (kg)</label><input type="number" @bind="pForm.Weight" class="input-field" style="margin-bottom:0;font-family:var(--font-en);" min="0" step="0.1" /></div>
+                </div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;">
+                    <div><label style="display:block;margin-bottom:0.3rem;color:var(--text-muted);font-size:0.8rem;">جنس / ماده اولیه</label><input type="text" @bind="pForm.Material" class="input-field" style="margin-bottom:0;" placeholder="ورق فلزی، MDF" /></div>
+                    <div><label style="display:block;margin-bottom:0.3rem;color:var(--text-muted);font-size:0.8rem;">رنگ</label><input type="text" @bind="pForm.Color" class="input-field" style="margin-bottom:0;" placeholder="مشکی مات" /></div>
+                </div>
             </div>
 
-            <div style="display: flex; gap: 1rem;">
-                <button class="btn-primary" style="flex: 1;" @onclick="SaveProduct" disabled="@isSaving">
+            <div style="background:var(--bg-color);border:1px solid var(--border-color);border-radius:var(--radius-md);padding:1.25rem;margin-bottom:1rem;">
+                <p style="font-size:0.8rem;color:var(--text-muted);font-weight:bold;margin-bottom:1rem;">قیمت‌گذاری (ریال)</p>
+                <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:1rem;">
+                    <div><label style="display:block;margin-bottom:0.3rem;color:var(--text-muted);font-size:0.8rem;">قیمت خرید / تمام‌شده</label><input type="number" @bind="pForm.PurchasePrice" class="input-field" style="margin-bottom:0;font-family:var(--font-en);" min="0" /></div>
+                    <div><label style="display:block;margin-bottom:0.3rem;color:var(--text-muted);font-size:0.8rem;">قیمت فروش روز *</label><input type="number" @bind="pForm.Price" class="input-field" style="margin-bottom:0;font-family:var(--font-en);border-color:var(--success);" min="0" /></div>
+                    <div><label style="display:block;margin-bottom:0.3rem;color:var(--text-muted);font-size:0.8rem;">حداقل قیمت فروش</label><input type="number" @bind="pForm.MinSalePrice" class="input-field" style="margin-bottom:0;font-family:var(--font-en);" min="0" /></div>
+                </div>
+            </div>
+
+            <div style="background:var(--bg-color);border:1px solid var(--border-color);border-radius:var(--radius-md);padding:1.25rem;margin-bottom:1.5rem;">
+                <p style="font-size:0.8rem;color:var(--text-muted);font-weight:bold;margin-bottom:1rem;">موجودی انبار</p>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;">
+                    <div><label style="display:block;margin-bottom:0.3rem;color:var(--text-muted);font-size:0.8rem;">موجودی فعلی</label><input type="number" @bind="pForm.StockQuantity" class="input-field" style="margin-bottom:0;font-family:var(--font-en);" min="0" step="0.1" /></div>
+                    <div><label style="display:block;margin-bottom:0.3rem;color:var(--text-muted);font-size:0.8rem;">حد هشدار موجودی کم</label><input type="number" @bind="pForm.MinStockAlert" class="input-field" style="margin-bottom:0;font-family:var(--font-en);" min="0" step="0.1" /></div>
+                </div>
+            </div>
+
+            <div style="display:flex;gap:1rem;border-top:1px solid var(--border-color);padding-top:1.25rem;">
+                <button class="btn-primary" style="flex:1;" @onclick="SaveProduct" disabled="@isSaving">
                     @if (isSaving) { <span>در حال ذخیره...</span> } else { <span>ذخیره کالا</span> }
                 </button>
-                <button style="flex: 1; background: var(--bg-color); border: 1px solid var(--border-color); color: var(--text-main); border-radius: var(--radius-md); cursor: pointer; font-weight: bold;" @onclick="CloseModal">انصراف</button>
+                <button style="flex:1;padding:0.6rem;border-radius:var(--radius-md);cursor:pointer;font-family:var(--font-fa);font-weight:bold;background:transparent;border:1px solid var(--border-color);color:var(--text-main);" @onclick="CloseModal">انصراف</button>
             </div>
         </div>
     </div>
@@ -141,96 +234,125 @@
 
 @code {
     private AppDbContext _db = null!;
-    private List<Product> products = new();
+    private List<Product> allProducts = new();
     private List<Product> filteredProducts = new();
     private bool isLoading = true;
     private bool isSaving = false;
-    private bool isSyncing = false;
+    private bool isModalOpen = false;
+    private int editingId = 0;
     private string pageError = "";
     private string modalError = "";
-    private string syncResult = "";
-    private string webApiUrl = "";
-    private string webApiKey = "";
+    private string activeTab = "همه";
 
     private string _searchQuery = "";
-    private string searchQuery
-    {
-        get => _searchQuery;
-        set { _searchQuery = value; FilterProducts(); }
-    }
+    private string searchQuery { get => _searchQuery; set { _searchQuery = value; ApplyFilter(); } }
+    private string _filterSubCat = "";
+    private string filterSubCat { get => _filterSubCat; set { _filterSubCat = value; ApplyFilter(); } }
+    private string _filterStock = "";
+    private string filterStock { get => _filterStock; set { _filterStock = value; ApplyFilter(); } }
 
-    private bool isModalOpen = false;
-    private Product editingProduct = new();
+    private Product pForm = new();
 
     protected override async Task OnInitializedAsync()
     {
         _db = await DbFactory.CreateDbContextAsync();
-        var setting = await _db.CompanySettings.AsNoTracking().FirstOrDefaultAsync();
-        if (setting != null) { webApiUrl = setting.WebApiUrl ?? ""; webApiKey = setting.WebApiKey ?? ""; }
-        await LoadProducts();
+        await LoadData();
     }
 
-    private async Task LoadProducts()
+    private async Task LoadData()
     {
         isLoading = true;
         try
         {
-            products = await _db.Products.AsNoTracking().OrderBy(p => p.Name).ToListAsync();
-            FilterProducts();
+            allProducts = await _db.Products.AsNoTracking()
+                .OrderBy(p => p.Category).ThenBy(p => p.Name)
+                .ToListAsync();
+            ApplyFilter();
         }
-        catch (Exception ex) { pageError = ex.Message; }
+        catch (Exception ex) { pageError = $"خطا: {ex.Message}"; }
         finally { isLoading = false; }
     }
 
-    private void FilterProducts()
+    private void ApplyFilter()
     {
-        if (string.IsNullOrWhiteSpace(searchQuery))
+        var q = allProducts.AsEnumerable();
+        if (activeTab != "همه") q = q.Where(p => p.Category == activeTab);
+        if (!string.IsNullOrEmpty(_filterSubCat)) q = q.Where(p => p.SubCategory == _filterSubCat);
+        if (_filterStock == "low") q = q.Where(p => p.StockQuantity > 0 && p.StockQuantity <= p.MinStockAlert);
+        else if (_filterStock == "ok") q = q.Where(p => p.StockQuantity > p.MinStockAlert);
+        else if (_filterStock == "zero") q = q.Where(p => p.StockQuantity == 0);
+        if (!string.IsNullOrWhiteSpace(_searchQuery))
         {
-            filteredProducts = products.ToList();
-            return;
+            var s = _searchQuery.ToLower();
+            q = q.Where(p => p.Name.ToLower().Contains(s) || p.Code.ToLower().Contains(s));
         }
-        var q = searchQuery.ToLower();
-        filteredProducts = products.Where(p =>
-            (p.Name != null && p.Name.ToLower().Contains(q)) ||
-            (p.Code != null && p.Code.ToLower().Contains(q))).ToList();
+        filteredProducts = q.ToList();
     }
 
-    private async Task OpenAddModal()
+    private void ClearFilters()
     {
-        editingProduct = new Product { Unit = "عدد" };
-        modalError = "";
-        isModalOpen = true;
-        await InvokeAsync(StateHasChanged);
+        activeTab = "همه"; _searchQuery = ""; _filterSubCat = ""; _filterStock = "";
+        ApplyFilter(); StateHasChanged();
     }
 
-    private async Task OpenEditModal(Product p)
+    private void OpenAddModal()
     {
-        editingProduct = new Product { Id = p.Id, Code = p.Code, Name = p.Name, Price = p.Price, StockQuantity = p.StockQuantity, Unit = p.Unit };
-        modalError = "";
-        isModalOpen = true;
-        await InvokeAsync(StateHasChanged);
+        editingId = 0;
+        pForm = new Product { Unit = "عدد", Category = "محصول نهایی", MinStockAlert = 5, IsActive = true, CreatedAt = DateTime.Now };
+        modalError = ""; isModalOpen = true;
     }
 
-    private void CloseModal() { isModalOpen = false; modalError = ""; }
+    private void OpenEditModal(Product p)
+    {
+        editingId = p.Id;
+        pForm = new Product
+        {
+            Code = p.Code, Name = p.Name, Description = p.Description,
+            Category = p.Category, SubCategory = p.SubCategory,
+            Width = p.Width, Height = p.Height, Depth = p.Depth, Weight = p.Weight,
+            Material = p.Material, Color = p.Color,
+            PurchasePrice = p.PurchasePrice, Price = p.Price, MinSalePrice = p.MinSalePrice,
+            StockQuantity = p.StockQuantity, Unit = p.Unit, MinStockAlert = p.MinStockAlert,
+            IsActive = p.IsActive, CreatedAt = p.CreatedAt
+        };
+        modalError = ""; isModalOpen = true;
+    }
+
+    private async Task CloseModal() { isModalOpen = false; await InvokeAsync(StateHasChanged); }
 
     private async Task SaveProduct()
     {
-        if (string.IsNullOrWhiteSpace(editingProduct.Name) || string.IsNullOrWhiteSpace(editingProduct.Code))
-        {
-            modalError = "کد و نام کالا الزامی است.";
-            return;
-        }
-        isSaving = true;
+        if (string.IsNullOrWhiteSpace(pForm.Code)) { modalError = "کد کالا الزامی است."; return; }
+        if (string.IsNullOrWhiteSpace(pForm.Name)) { modalError = "نام کالا الزامی است."; return; }
+        isSaving = true; modalError = "";
         try
         {
-            await using var saveDb = await DbFactory.CreateDbContextAsync();
-            if (editingProduct.Id == 0) saveDb.Products.Add(editingProduct);
-            else saveDb.Products.Update(editingProduct);
-            await saveDb.SaveChangesAsync();
-            await LoadProducts();
-            CloseModal();
+            await using var db = await DbFactory.CreateDbContextAsync();
+            if (editingId == 0)
+            {
+                db.Products.Add(pForm);
+            }
+            else
+            {
+                var existing = await db.Products.FindAsync(editingId);
+                if (existing != null)
+                {
+                    existing.Code = pForm.Code; existing.Name = pForm.Name; existing.Description = pForm.Description;
+                    existing.Category = pForm.Category; existing.SubCategory = pForm.SubCategory;
+                    existing.Width = pForm.Width; existing.Height = pForm.Height;
+                    existing.Depth = pForm.Depth; existing.Weight = pForm.Weight;
+                    existing.Material = pForm.Material; existing.Color = pForm.Color;
+                    existing.PurchasePrice = pForm.PurchasePrice; existing.Price = pForm.Price;
+                    existing.MinSalePrice = pForm.MinSalePrice; existing.StockQuantity = pForm.StockQuantity;
+                    existing.Unit = pForm.Unit; existing.MinStockAlert = pForm.MinStockAlert;
+                    existing.IsActive = pForm.IsActive;
+                }
+            }
+            await db.SaveChangesAsync();
+            await LoadData();
+            isModalOpen = false;
         }
-        catch (Exception ex) { modalError = ex.Message; }
+        catch (Exception ex) { modalError = $"خطا: {ex.Message}"; }
         finally { isSaving = false; }
     }
 
@@ -238,48 +360,12 @@
     {
         try
         {
-            await using var deleteDb = await DbFactory.CreateDbContextAsync();
-            var p = await deleteDb.Products.FindAsync(id);
-            if (p != null) { deleteDb.Products.Remove(p); await deleteDb.SaveChangesAsync(); }
-            await LoadProducts();
+            await using var db = await DbFactory.CreateDbContextAsync();
+            var p = await db.Products.FindAsync(id);
+            if (p != null) { db.Products.Remove(p); await db.SaveChangesAsync(); }
+            await LoadData();
         }
-        catch (Exception ex) { pageError = ex.Message; }
-    }
-
-    private async Task SyncToWebsite()
-    {
-        if (string.IsNullOrEmpty(webApiUrl)) return;
-        isSyncing = true;
-        syncResult = "";
-        try
-        {
-            using var http = new HttpClient();
-            http.Timeout = TimeSpan.FromSeconds(30);
-            if (!string.IsNullOrEmpty(webApiKey))
-                http.DefaultRequestHeaders.Add("X-Api-Key", webApiKey);
-
-            var payload = products.Select(p => new
-            {
-                code = p.Code,
-                name = p.Name,
-                price = p.Price,
-                stock = p.StockQuantity,
-                unit = p.Unit
-            });
-
-            var json = JsonSerializer.Serialize(payload, new JsonSerializerOptions { WriteIndented = false });
-            var content = new StringContent(json, Encoding.UTF8, "application/json");
-            var response = await http.PostAsync(webApiUrl, content);
-
-            syncResult = response.IsSuccessStatusCode
-                ? $"✓ {products.Count} محصول با موفقیت به وب‌سایت ارسال شد (HTTP {(int)response.StatusCode})"
-                : $"خطا: سرور پاسخ HTTP {(int)response.StatusCode} داد";
-        }
-        catch (Exception ex)
-        {
-            syncResult = $"خطا در اتصال به سایت: {ex.Message}";
-        }
-        finally { isSyncing = false; }
+        catch (Exception ex) { pageError = $"خطا در حذف: {ex.Message}"; }
     }
 
     public void Dispose() => _db?.Dispose();

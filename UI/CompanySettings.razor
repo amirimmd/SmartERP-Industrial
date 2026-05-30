@@ -1,151 +1,251 @@
 @page "/company-settings"
-@using SmartERP.Core
-@using SmartERP.Infrastructure
-@using Microsoft.EntityFrameworkCore
-@using Microsoft.AspNetCore.Components.Forms
 @implements IDisposable
 @inject IDbContextFactory<AppDbContext> DbFactory
 
 <div class="module-header">
-    <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 2rem;">
+    <div style="display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:2rem;">
         <div>
-            <h1 style="color: var(--primary-color); font-weight: 800; font-size: 1.8rem; margin-bottom: 0.5rem;">تنظیمات و اطلاعات شرکت</h1>
-            <p style="color: var(--text-muted); margin: 0; font-size: 0.95rem;">مدیریت اطلاعات پایه مجموعه جهت درج در سربرگ فاکتورها</p>
+            <h1 style="color:var(--primary-color);font-weight:800;font-size:1.8rem;margin-bottom:0.4rem;">تنظیمات شرکت</h1>
+            <p style="color:var(--text-muted);margin:0;font-size:0.9rem;">اطلاعات هویتی، لوگو، امضا، بانک و API — تمام فاکتورها و گزارش‌ها از این تنظیمات می‌خوانند</p>
         </div>
+        <button class="btn-primary" @onclick="SaveSettings" disabled="@isSaving">
+            @if (isSaving) { <span>در حال ذخیره...</span> } else { <span>✓ ذخیره تمام تنظیمات</span> }
+        </button>
     </div>
+
+    @if (!string.IsNullOrEmpty(successMsg))
+    {
+        <div style="padding:0.75rem 1rem;background:rgba(16,185,129,0.1);border:1px solid var(--success);border-radius:var(--radius-md);color:var(--success);font-size:0.88rem;margin-bottom:1.5rem;">✓ @successMsg</div>
+    }
+    @if (!string.IsNullOrEmpty(errorMsg))
+    {
+        <div style="padding:0.75rem 1rem;background:rgba(239,68,68,0.1);border:1px solid var(--danger);border-radius:var(--radius-md);color:var(--danger);font-size:0.88rem;margin-bottom:1.5rem;">@errorMsg</div>
+    }
 
     @if (isLoading)
     {
-        <div class="card" style="display: flex; justify-content: center; align-items: center; height: 40vh;">
-            <div class="loader-pulse-ring"></div>
-        </div>
+        <div class="card" style="padding:4rem;text-align:center;"><div class="loader-pulse-ring" style="margin:0 auto;"></div></div>
     }
     else
     {
-        @if (showSuccess)
-        {
-            <div class="alert-success">اطلاعات شرکت با موفقیت ذخیره شد.</div>
-        }
-        @if (!string.IsNullOrEmpty(errorMessage))
-        {
-            <div class="alert-error">@errorMessage</div>
-        }
+        <div style="display:grid;grid-template-columns:2fr 1fr;gap:1.5rem;">
 
-        <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 2rem; margin-bottom: 2rem;">
+            <!-- ستون اصلی -->
+            <div style="display:flex;flex-direction:column;gap:1.5rem;">
 
-            <!-- اطلاعات اصلی -->
-            <div class="card" style="padding: 2rem;">
-                <h2 style="font-size: 1.1rem; color: var(--text-main); margin-bottom: 1.5rem; border-bottom: 1px solid var(--border-color); padding-bottom: 0.5rem; font-weight: 700;">هویت حقوقی و مشخصات</h2>
-
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
-                    <div>
-                        <label style="display: block; margin-bottom: 0.4rem; color: var(--text-muted); font-size: 0.85rem;">نام شرکت / مجموعه صنعتی *</label>
-                        <input type="text" @bind="setting.CompanyName" class="input-field" style="margin-bottom: 0;" placeholder="گروه صنعتی ..." />
+                <!-- بخش ۱: هویت شرکت -->
+                <div class="card">
+                    <h3 style="font-size:1rem;font-weight:bold;color:var(--primary-color);margin-bottom:1.25rem;padding-bottom:0.75rem;border-bottom:1px solid var(--border-color);">هویت و اطلاعات حقوقی</h3>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1rem;">
+                        <div>
+                            <label style="display:block;margin-bottom:0.3rem;color:var(--text-muted);font-size:0.82rem;">نام تجاری شرکت *</label>
+                            <input type="text" @bind="s.CompanyName" class="input-field" style="margin-bottom:0;border-color:var(--primary-color);" />
+                        </div>
+                        <div>
+                            <label style="display:block;margin-bottom:0.3rem;color:var(--text-muted);font-size:0.82rem;">نام حقوقی / ثبتی</label>
+                            <input type="text" @bind="s.LegalName" class="input-field" style="margin-bottom:0;" />
+                        </div>
                     </div>
-                    <div>
-                        <label style="display: block; margin-bottom: 0.4rem; color: var(--text-muted); font-size: 0.85rem;">نام مدیریت عامل</label>
-                        <input type="text" @bind="setting.ManagerName" class="input-field" style="margin-bottom: 0;" />
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1rem;">
+                        <div>
+                            <label style="display:block;margin-bottom:0.3rem;color:var(--text-muted);font-size:0.82rem;">نام مدیرعامل</label>
+                            <input type="text" @bind="s.ManagerName" class="input-field" style="margin-bottom:0;" />
+                        </div>
+                        <div>
+                            <label style="display:block;margin-bottom:0.3rem;color:var(--text-muted);font-size:0.82rem;">شناسه مالیاتی / شماره ثبت</label>
+                            <input type="text" @bind="s.TaxId" class="input-field" style="margin-bottom:0;direction:ltr;font-family:var(--font-en);" />
+                        </div>
+                    </div>
+                    <div style="margin-bottom:1rem;">
+                        <label style="display:block;margin-bottom:0.3rem;color:var(--text-muted);font-size:0.82rem;">آدرس دفتر / کارخانه</label>
+                        <input type="text" @bind="s.Address" class="input-field" style="margin-bottom:0;" />
+                    </div>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1rem;">
+                        <div>
+                            <label style="display:block;margin-bottom:0.3rem;color:var(--text-muted);font-size:0.82rem;">تلفن اصلی</label>
+                            <input type="text" @bind="s.PhoneNumber" class="input-field" style="margin-bottom:0;direction:ltr;font-family:var(--font-en);" />
+                        </div>
+                        <div>
+                            <label style="display:block;margin-bottom:0.3rem;color:var(--text-muted);font-size:0.82rem;">تلفن ثانوی / دورنگار</label>
+                            <input type="text" @bind="s.SecondaryPhone" class="input-field" style="margin-bottom:0;direction:ltr;font-family:var(--font-en);" />
+                        </div>
+                    </div>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;">
+                        <div>
+                            <label style="display:block;margin-bottom:0.3rem;color:var(--text-muted);font-size:0.82rem;">وب‌سایت</label>
+                            <input type="text" @bind="s.Website" class="input-field" style="margin-bottom:0;direction:ltr;font-family:var(--font-en);" placeholder="https://example.com" />
+                        </div>
+                        <div>
+                            <label style="display:block;margin-bottom:0.3rem;color:var(--text-muted);font-size:0.82rem;">ایمیل</label>
+                            <input type="email" @bind="s.Email" class="input-field" style="margin-bottom:0;direction:ltr;font-family:var(--font-en);" placeholder="info@example.com" />
+                        </div>
                     </div>
                 </div>
 
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
-                    <div>
-                        <label style="display: block; margin-bottom: 0.4rem; color: var(--text-muted); font-size: 0.85rem;">شماره تماس کارخانه</label>
-                        <input type="text" @bind="setting.PhoneNumber" class="input-field" style="margin-bottom: 0; font-family: var(--font-en); direction: ltr;" placeholder="09xxxxxxxxx" />
+                <!-- بخش ۲: برندینگ چاپ -->
+                <div class="card">
+                    <h3 style="font-size:1rem;font-weight:bold;color:var(--primary-color);margin-bottom:1.25rem;padding-bottom:0.75rem;border-bottom:1px solid var(--border-color);">برندینگ فاکتور و چاپ</h3>
+                    <div style="margin-bottom:1rem;">
+                        <label style="display:block;margin-bottom:0.3rem;color:var(--text-muted);font-size:0.82rem;">شعار / عنوان زیر نام شرکت</label>
+                        <input type="text" @bind="s.Slogan" class="input-field" style="margin-bottom:0;" placeholder="مثال: تولید کننده انواع درب و چهارچوب" />
                     </div>
                     <div>
-                        <label style="display: block; margin-bottom: 0.4rem; color: var(--text-muted); font-size: 0.85rem;">نرخ مالیات ارزش افزوده (درصد)</label>
-                        <input type="number" @bind="taxRatePercent" class="input-field" style="margin-bottom: 0; font-family: var(--font-en);" min="0" max="100" step="0.5" />
+                        <label style="display:block;margin-bottom:0.3rem;color:var(--text-muted);font-size:0.82rem;">متن پاورقی فاکتور</label>
+                        <textarea @bind="s.FooterNote" class="input-field" style="min-height:70px;resize:vertical;margin-bottom:0;" placeholder="با تشکر از انتخاب شما — شرایط گارانتی — توضیحات اضافی"></textarea>
                     </div>
                 </div>
 
-                <div style="margin-bottom: 1rem;">
-                    <label style="display: block; margin-bottom: 0.4rem; color: var(--text-muted); font-size: 0.85rem;">شعار تبلیغاتی / متن سربرگ</label>
-                    <input type="text" @bind="setting.Slogan" class="input-field" style="margin-bottom: 0;" placeholder="تولید کننده انواع ..." />
+                <!-- بخش ۳: اطلاعات بانکی -->
+                <div class="card">
+                    <h3 style="font-size:1rem;font-weight:bold;color:var(--primary-color);margin-bottom:1.25rem;padding-bottom:0.75rem;border-bottom:1px solid var(--border-color);">اطلاعات بانکی (جهت درج در فاکتور)</h3>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1rem;">
+                        <div>
+                            <label style="display:block;margin-bottom:0.3rem;color:var(--text-muted);font-size:0.82rem;">نام بانک</label>
+                            <input type="text" @bind="s.BankName" class="input-field" style="margin-bottom:0;" placeholder="بانک ملی ایران" />
+                        </div>
+                        <div>
+                            <label style="display:block;margin-bottom:0.3rem;color:var(--text-muted);font-size:0.82rem;">نام صاحب حساب</label>
+                            <input type="text" @bind="s.CardOwner" class="input-field" style="margin-bottom:0;" />
+                        </div>
+                    </div>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1rem;">
+                        <div>
+                            <label style="display:block;margin-bottom:0.3rem;color:var(--text-muted);font-size:0.82rem;">شماره کارت</label>
+                            <input type="text" @bind="s.CardNumber" class="input-field" style="margin-bottom:0;direction:ltr;font-family:var(--font-en);letter-spacing:2px;" placeholder="6037-xxxx-xxxx-xxxx" maxlength="19" />
+                        </div>
+                        <div>
+                            <label style="display:block;margin-bottom:0.3rem;color:var(--text-muted);font-size:0.82rem;">شماره حساب</label>
+                            <input type="text" @bind="s.AccountNumber" class="input-field" style="margin-bottom:0;direction:ltr;font-family:var(--font-en);" />
+                        </div>
+                    </div>
+                    <div>
+                        <label style="display:block;margin-bottom:0.3rem;color:var(--text-muted);font-size:0.82rem;">شبا (IBAN)</label>
+                        <input type="text" @bind="s.ShabaNumber" class="input-field" style="margin-bottom:0;direction:ltr;font-family:var(--font-en);" placeholder="IR000000000000000000000000" maxlength="26" />
+                    </div>
                 </div>
 
-                <div style="margin-bottom: 2rem;">
-                    <label style="display: block; margin-bottom: 0.4rem; color: var(--text-muted); font-size: 0.85rem;">آدرس کارخانه / دفتر فروش</label>
-                    <textarea @bind="setting.Address" rows="3" class="input-field" style="height: auto; resize: none; margin-bottom: 0;" placeholder="آدرس دقیق جهت چاپ بر فاکتورها..."></textarea>
+                <!-- بخش ۴: تنظیمات مالی -->
+                <div class="card">
+                    <h3 style="font-size:1rem;font-weight:bold;color:var(--primary-color);margin-bottom:1.25rem;padding-bottom:0.75rem;border-bottom:1px solid var(--border-color);">تنظیمات مالی</h3>
+                    <div style="display:grid;grid-template-columns:1fr 3fr;gap:1rem;align-items:center;">
+                        <div>
+                            <label style="display:block;margin-bottom:0.3rem;color:var(--text-muted);font-size:0.82rem;">نرخ مالیات پیش‌فرض (%)</label>
+                            <input type="number" value="@((s.DefaultTaxRate * 100).ToString("0.##"))" @oninput="OnTaxRateInput" class="input-field" style="margin-bottom:0;font-family:var(--font-en);" min="0" max="100" step="0.5" />
+                        </div>
+                        <div style="padding:0.75rem 1rem;background:var(--bg-color);border:1px solid var(--border-color);border-radius:var(--radius-md);">
+                            <div style="font-size:0.8rem;color:var(--text-muted);">نرخ ذخیره‌شده: <span class="industrial-num" style="color:var(--primary-color);">@(s.DefaultTaxRate * 100)%</span></div>
+                            <div style="font-size:0.75rem;color:var(--text-muted);margin-top:0.3rem;">این نرخ در تمام فاکتورهای جدید به صورت خودکار اعمال می‌شود.</div>
+                        </div>
+                    </div>
                 </div>
 
-                <button class="btn-primary" @onclick="SaveChanges" disabled="@isSaving" style="min-width: 180px;">
-                    @if (isSaving) { <span>در حال ذخیره...</span> } else { <span>ذخیره تمام تغییرات</span> }
-                </button>
+                <!-- بخش ۵: API وب‌سایت -->
+                <div class="card">
+                    <h3 style="font-size:1rem;font-weight:bold;color:var(--primary-color);margin-bottom:1.25rem;padding-bottom:0.75rem;border-bottom:1px solid var(--border-color);">یکپارچه‌سازی وب‌سایت (API کاتالوگ)</h3>
+                    <div style="margin-bottom:1rem;">
+                        <label style="display:block;margin-bottom:0.3rem;color:var(--text-muted);font-size:0.82rem;">آدرس API</label>
+                        <input type="text" @bind="s.WebApiUrl" class="input-field" style="margin-bottom:0;direction:ltr;font-family:var(--font-en);" placeholder="https://yoursite.com/api/products" />
+                    </div>
+                    <div>
+                        <label style="display:block;margin-bottom:0.3rem;color:var(--text-muted);font-size:0.82rem;">کلید API (مخفی)</label>
+                        <input type="password" @bind="s.WebApiKey" class="input-field" style="margin-bottom:0;direction:ltr;font-family:var(--font-en);" placeholder="sk_live_..." />
+                    </div>
+                </div>
+
             </div>
 
-            <!-- لوگو -->
-            <div class="card" style="padding: 2rem; display: flex; flex-direction: column; align-items: center;">
-                <h2 style="font-size: 1.1rem; color: var(--text-main); margin-bottom: 1.5rem; border-bottom: 1px solid var(--border-color); padding-bottom: 0.5rem; width: 100%; font-weight: 700;">لوگوی رسمی سربرگ</h2>
+            <!-- ستون سمت چپ: لوگو، امضا، پیش‌نمایش -->
+            <div style="display:flex;flex-direction:column;gap:1.5rem;">
 
-                <div onclick="document.getElementById('logoFileInput').click()"
-                     style="border: 2px dashed var(--border-color); border-radius: var(--radius-lg); padding: 1.5rem; width: 100%; cursor: pointer; text-align: center; margin-bottom: 1rem;">
-                    @if (!string.IsNullOrEmpty(setting.LogoPath) && setting.LogoPath != "/images/default-logo.png")
+                <!-- لوگو -->
+                <div class="card">
+                    <h3 style="font-size:1rem;font-weight:bold;color:var(--primary-color);margin-bottom:1.25rem;padding-bottom:0.75rem;border-bottom:1px solid var(--border-color);">لوگو شرکت</h3>
+                    <div style="width:100%;height:120px;border:2px dashed var(--border-color);border-radius:var(--radius-md);display:flex;align-items:center;justify-content:center;overflow:hidden;margin-bottom:1rem;background:var(--bg-color);">
+                        @if (!string.IsNullOrEmpty(s.LogoPath) && s.LogoPath.Length > 50)
+                        {
+                            <img src="data:image/png;base64,@s.LogoPath" style="max-width:100%;max-height:100%;object-fit:contain;" />
+                        }
+                        else
+                        {
+                            <div style="text-align:center;color:var(--text-muted);">
+                                <div style="font-size:2rem;margin-bottom:0.4rem;">🏭</div>
+                                <div style="font-size:0.78rem;">لوگو بارگذاری نشده</div>
+                            </div>
+                        }
+                    </div>
+                    <InputFile OnChange="OnLogoSelected" accept="image/*" style="font-family:var(--font-fa);font-size:0.8rem;color:var(--text-muted);width:100%;" />
+                    <div style="font-size:0.72rem;color:var(--text-muted);margin-top:0.4rem;">فرمت‌های پشتیبانی: PNG، JPG — حداکثر ۲ مگابایت</div>
+                    @if (!string.IsNullOrEmpty(s.LogoPath) && s.LogoPath.Length > 50)
                     {
-                        <img src="@setting.LogoPath" style="max-width: 100%; max-height: 130px; object-fit: contain; margin-bottom: 0.5rem;" alt="Logo" />
-                        <p style="color: var(--primary-color); font-size: 0.8rem; margin: 0;">برای تغییر کلیک کنید</p>
+                        <button @onclick="() => s.LogoPath = string.Empty" style="background:none;border:none;color:var(--danger);cursor:pointer;font-family:var(--font-fa);font-size:0.8rem;margin-top:0.5rem;padding:0;">حذف لوگو</button>
                     }
-                    else
-                    {
-                        <div style="font-size: 2.5rem; color: var(--text-muted); margin-bottom: 0.5rem;">📷</div>
-                        <p style="color: var(--text-muted); font-size: 0.85rem; margin: 0;">برای بارگذاری لوگو کلیک کنید</p>
-                        <p style="color: var(--text-muted); font-size: 0.75rem; margin: 0.3rem 0 0;">PNG / JPG — حداکثر ۲ مگابایت</p>
-                    }
-                    <InputFile id="logoFileInput" style="display: none;" OnChange="HandleLogoUpload" accept="image/png,image/jpeg" />
                 </div>
-            </div>
 
+                <!-- امضای مدیرعامل -->
+                <div class="card">
+                    <h3 style="font-size:1rem;font-weight:bold;color:var(--primary-color);margin-bottom:1.25rem;padding-bottom:0.75rem;border-bottom:1px solid var(--border-color);">امضای مدیرعامل</h3>
+                    <div style="width:100%;height:100px;border:2px dashed var(--border-color);border-radius:var(--radius-md);display:flex;align-items:center;justify-content:center;overflow:hidden;margin-bottom:1rem;background:var(--bg-color);">
+                        @if (!string.IsNullOrEmpty(s.CeoSignatureBase64) && s.CeoSignatureBase64.Length > 50)
+                        {
+                            <img src="data:image/png;base64,@s.CeoSignatureBase64" style="max-width:100%;max-height:100%;object-fit:contain;" />
+                        }
+                        else
+                        {
+                            <div style="text-align:center;color:var(--text-muted);font-size:0.78rem;">امضا بارگذاری نشده</div>
+                        }
+                    </div>
+                    <InputFile OnChange="OnSignatureSelected" accept="image/*" style="font-family:var(--font-fa);font-size:0.8rem;color:var(--text-muted);width:100%;" />
+                    <div style="font-size:0.72rem;color:var(--text-muted);margin-top:0.4rem;">تصویر امضا روی فاکتورهای چاپی درج می‌شود.</div>
+                    @if (!string.IsNullOrEmpty(s.CeoSignatureBase64) && s.CeoSignatureBase64.Length > 50)
+                    {
+                        <button @onclick="() => s.CeoSignatureBase64 = string.Empty" style="background:none;border:none;color:var(--danger);cursor:pointer;font-family:var(--font-fa);font-size:0.8rem;margin-top:0.5rem;padding:0;">حذف امضا</button>
+                    }
+                </div>
+
+                <!-- پیش‌نمایش سربرگ فاکتور -->
+                <div class="card" style="background:var(--bg-color);">
+                    <h3 style="font-size:0.9rem;font-weight:bold;color:var(--text-muted);margin-bottom:1rem;">پیش‌نمایش سربرگ</h3>
+                    <div style="background:#fff;border-radius:3px;padding:1rem;color:#111;direction:rtl;">
+                        <div style="display:flex;justify-content:space-between;align-items:center;border-bottom:2px solid #111;padding-bottom:0.75rem;margin-bottom:0.75rem;">
+                            <div>
+                                <div style="font-weight:900;font-size:1rem;font-family:Tahoma;">@(string.IsNullOrEmpty(s.CompanyName) ? "نام شرکت" : s.CompanyName)</div>
+                                @if (!string.IsNullOrEmpty(s.Slogan)) { <div style="font-size:0.7rem;color:#555;">@s.Slogan</div> }
+                                @if (!string.IsNullOrEmpty(s.PhoneNumber)) { <div style="font-size:0.7rem;color:#555;">☎ @s.PhoneNumber</div> }
+                            </div>
+                            @if (!string.IsNullOrEmpty(s.LogoPath) && s.LogoPath.Length > 50)
+                            {
+                                <img src="data:image/png;base64,@s.LogoPath" style="height:50px;object-fit:contain;" />
+                            }
+                            else
+                            {
+                                <div style="width:50px;height:50px;border:2px dashed #ccc;display:flex;align-items:center;justify-content:center;border-radius:3px;color:#ccc;font-size:0.6rem;">LOGO</div>
+                            }
+                        </div>
+                        @if (!string.IsNullOrEmpty(s.TaxId)) { <div style="font-size:0.65rem;color:#888;">شناسه مالیاتی: @s.TaxId</div> }
+                        @if (!string.IsNullOrEmpty(s.BankName)) { <div style="font-size:0.65rem;color:#888;">بانک: @s.BankName — کارت: @(string.IsNullOrEmpty(s.CardNumber) ? "—" : s.CardNumber)</div> }
+                        @if (!string.IsNullOrEmpty(s.FooterNote)) { <div style="font-size:0.62rem;color:#aaa;margin-top:0.5rem;border-top:1px solid #eee;padding-top:0.4rem;">@s.FooterNote</div> }
+                    </div>
+                </div>
+
+            </div>
         </div>
 
-        <!-- اطلاعات بانکی -->
-        <div class="card" style="padding: 2rem; margin-bottom: 2rem;">
-            <h2 style="font-size: 1.1rem; color: var(--text-main); margin-bottom: 1.5rem; border-bottom: 1px solid var(--border-color); padding-bottom: 0.5rem; font-weight: 700;">اطلاعات حساب بانکی (برای چاپ روی فاکتور)</h2>
-            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 1rem;">
-                <div>
-                    <label style="display: block; margin-bottom: 0.4rem; color: var(--text-muted); font-size: 0.85rem;">نام بانک</label>
-                    <input type="text" @bind="setting.BankName" class="input-field" style="margin-bottom: 0;" placeholder="مثال: ملی" />
-                </div>
-                <div>
-                    <label style="display: block; margin-bottom: 0.4rem; color: var(--text-muted); font-size: 0.85rem;">شماره کارت</label>
-                    <input type="text" @bind="setting.AccountNumber" class="input-field" style="margin-bottom: 0; font-family: var(--font-en); direction: ltr;" placeholder="6037-xxxx-xxxx-xxxx" />
-                </div>
-                <div>
-                    <label style="display: block; margin-bottom: 0.4rem; color: var(--text-muted); font-size: 0.85rem;">شماره شبا</label>
-                    <input type="text" @bind="setting.ShabaNumber" class="input-field" style="margin-bottom: 0; font-family: var(--font-en); direction: ltr;" placeholder="IR..." />
-                </div>
-                <div>
-                    <label style="display: block; margin-bottom: 0.4rem; color: var(--text-muted); font-size: 0.85rem;">به نام (صاحب حساب)</label>
-                    <input type="text" @bind="setting.CardOwner" class="input-field" style="margin-bottom: 0;" />
-                </div>
-            </div>
-        </div>
-
-        <!-- API وب‌سایت -->
-        <div class="card" style="padding: 2rem;">
-            <h2 style="font-size: 1.1rem; color: var(--text-main); margin-bottom: 0.5rem; font-weight: 700;">API همگام‌سازی وب‌سایت کاتالوگ</h2>
-            <p style="color: var(--text-muted); font-size: 0.85rem; margin-bottom: 1.5rem;">برای فعال‌سازی دکمه «ارسال به سایت» در بخش انبار، آدرس API را وارد کنید.</p>
-            <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 1rem;">
-                <div>
-                    <label style="display: block; margin-bottom: 0.4rem; color: var(--text-muted); font-size: 0.85rem;">آدرس API (endpoint)</label>
-                    <input type="url" @bind="setting.WebApiUrl" class="input-field" style="margin-bottom: 0; font-family: var(--font-en); direction: ltr;" placeholder="https://example.com/api/products" />
-                </div>
-                <div>
-                    <label style="display: block; margin-bottom: 0.4rem; color: var(--text-muted); font-size: 0.85rem;">کلید API (X-Api-Key)</label>
-                    <input type="password" @bind="setting.WebApiKey" class="input-field" style="margin-bottom: 0; font-family: var(--font-en); direction: ltr;" placeholder="API Key اختیاری است" />
-                </div>
-            </div>
+        <!-- دکمه ذخیره پایین -->
+        <div style="margin-top:2rem;display:flex;justify-content:flex-end;">
+            <button class="btn-primary" style="padding:0.75rem 2.5rem;font-size:1rem;" @onclick="SaveSettings" disabled="@isSaving">
+                @if (isSaving) { <span>در حال ذخیره...</span> } else { <span>✓ ذخیره تمام تنظیمات</span> }
+            </button>
         </div>
     }
 </div>
 
 @code {
     private AppDbContext _db = null!;
-    private CompanySetting setting = new();
+    private CompanySetting s = new();
     private bool isLoading = true;
     private bool isSaving = false;
-    private bool showSuccess = false;
-    private string errorMessage = "";
-    private decimal taxRatePercent = 9;
+    private string successMsg = "";
+    private string errorMsg = "";
 
     protected override async Task OnInitializedAsync()
     {
@@ -158,79 +258,80 @@
         isLoading = true;
         try
         {
-            var existing = await _db.CompanySettings.FirstOrDefaultAsync();
-            if (existing != null)
-            {
-                setting = existing;
-                taxRatePercent = setting.DefaultTaxRate * 100;
-            }
-            else
-            {
-                setting = new CompanySetting { Id = 1, CompanyName = "شرکت شما" };
-            }
+            var existing = await _db.CompanySettings.AsNoTracking().FirstOrDefaultAsync();
+            s = existing ?? new CompanySetting { Id = 1, CompanyName = "گروه صنعتی", DefaultTaxRate = 0.09m };
         }
-        catch (Exception ex) { errorMessage = "خطا در بارگذاری: " + ex.Message; }
+        catch (Exception ex) { errorMsg = $"خطا در بارگذاری: {ex.Message}"; }
         finally { isLoading = false; }
     }
 
-    private async Task HandleLogoUpload(InputFileChangeEventArgs e)
+    private async Task SaveSettings()
     {
-        errorMessage = "";
-        var file = e.File;
-        if (file.Size > 2 * 1024 * 1024) { errorMessage = "حجم فایل لوگو نباید بیشتر از ۲ مگابایت باشد."; return; }
+        if (string.IsNullOrWhiteSpace(s.CompanyName)) { errorMsg = "نام شرکت الزامی است."; return; }
+        isSaving = true; successMsg = ""; errorMsg = "";
         try
         {
-            var buffer = new byte[file.Size];
-            using var stream = file.OpenReadStream(2 * 1024 * 1024);
-            await stream.ReadAsync(buffer);
-            setting.LogoPath = $"data:{file.ContentType};base64,{Convert.ToBase64String(buffer)}";
-        }
-        catch { errorMessage = "خطا در پردازش تصویر لوگو."; }
-    }
-
-    private async Task SaveChanges()
-    {
-        if (string.IsNullOrWhiteSpace(setting.CompanyName))
-        {
-            errorMessage = "نام شرکت الزامی است.";
-            return;
-        }
-        isSaving = true;
-        showSuccess = false;
-        errorMessage = "";
-        try
-        {
-            setting.DefaultTaxRate = taxRatePercent / 100;
-
-            await using var saveDb = await DbFactory.CreateDbContextAsync();
-            var existing = await saveDb.CompanySettings.FirstOrDefaultAsync();
+            await using var db = await DbFactory.CreateDbContextAsync();
+            var existing = await db.CompanySettings.FirstOrDefaultAsync();
             if (existing == null)
             {
-                setting.Id = 1;
-                saveDb.CompanySettings.Add(setting);
+                s.Id = 1;
+                db.CompanySettings.Add(s);
             }
             else
             {
-                existing.CompanyName = setting.CompanyName;
-                existing.ManagerName = setting.ManagerName;
-                existing.Address = setting.Address;
-                existing.PhoneNumber = setting.PhoneNumber;
-                existing.Slogan = setting.Slogan;
-                existing.LogoPath = setting.LogoPath;
-                existing.DefaultTaxRate = setting.DefaultTaxRate;
-                existing.BankName = setting.BankName;
-                existing.AccountNumber = setting.AccountNumber;
-                existing.ShabaNumber = setting.ShabaNumber;
-                existing.CardOwner = setting.CardOwner;
-                existing.WebApiUrl = setting.WebApiUrl;
-                existing.WebApiKey = setting.WebApiKey;
-                setting = existing;
+                existing.CompanyName = s.CompanyName; existing.LegalName = s.LegalName;
+                existing.TaxId = s.TaxId; existing.ManagerName = s.ManagerName;
+                existing.Address = s.Address; existing.PhoneNumber = s.PhoneNumber;
+                existing.SecondaryPhone = s.SecondaryPhone; existing.Website = s.Website;
+                existing.Email = s.Email; existing.Slogan = s.Slogan;
+                existing.FooterNote = s.FooterNote; existing.LogoPath = s.LogoPath;
+                existing.CeoSignatureBase64 = s.CeoSignatureBase64;
+                existing.DefaultTaxRate = s.DefaultTaxRate; existing.DefaultTheme = s.DefaultTheme;
+                existing.BankName = s.BankName; existing.AccountNumber = s.AccountNumber;
+                existing.ShabaNumber = s.ShabaNumber; existing.CardNumber = s.CardNumber;
+                existing.CardOwner = s.CardOwner;
+                existing.WebApiUrl = s.WebApiUrl; existing.WebApiKey = s.WebApiKey;
             }
-            await saveDb.SaveChangesAsync();
-            showSuccess = true;
+            await db.SaveChangesAsync();
+            successMsg = "تنظیمات با موفقیت ذخیره شد. تمام فاکتورهای جدید از این اطلاعات استفاده می‌کنند.";
         }
-        catch (Exception ex) { errorMessage = "خطا در ذخیره: " + ex.Message; }
+        catch (Exception ex) { errorMsg = $"خطا در ذخیره: {ex.Message}"; }
         finally { isSaving = false; }
+    }
+
+    private void OnTaxRateInput(ChangeEventArgs e)
+    {
+        if (decimal.TryParse(e.Value?.ToString(), out var v))
+            s.DefaultTaxRate = Math.Clamp(v / 100m, 0m, 1m);
+    }
+
+    private async Task OnLogoSelected(InputFileChangeEventArgs e)
+    {
+        try
+        {
+            var file = e.File;
+            if (file.Size > 2 * 1024 * 1024) { errorMsg = "حجم لوگو نباید بیشتر از ۲ مگابایت باشد."; return; }
+            using var ms = new System.IO.MemoryStream();
+            await file.OpenReadStream(2 * 1024 * 1024).CopyToAsync(ms);
+            s.LogoPath = Convert.ToBase64String(ms.ToArray());
+            errorMsg = "";
+        }
+        catch { errorMsg = "خطا در بارگذاری لوگو."; }
+    }
+
+    private async Task OnSignatureSelected(InputFileChangeEventArgs e)
+    {
+        try
+        {
+            var file = e.File;
+            if (file.Size > 1 * 1024 * 1024) { errorMsg = "حجم امضا نباید بیشتر از ۱ مگابایت باشد."; return; }
+            using var ms = new System.IO.MemoryStream();
+            await file.OpenReadStream(1 * 1024 * 1024).CopyToAsync(ms);
+            s.CeoSignatureBase64 = Convert.ToBase64String(ms.ToArray());
+            errorMsg = "";
+        }
+        catch { errorMsg = "خطا در بارگذاری امضا."; }
     }
 
     public void Dispose() => _db?.Dispose();

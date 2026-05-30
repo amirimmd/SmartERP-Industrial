@@ -1,204 +1,385 @@
 @page "/"
-@using SmartERP.Core
-@using SmartERP.Infrastructure
-@using Microsoft.EntityFrameworkCore
 @implements IDisposable
 @inject IDbContextFactory<AppDbContext> DbFactory
+@inject NavigationManager NavManager
 
 <div>
-    <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 2.5rem;">
+    <div style="display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:2rem;">
         <div>
-            <h1 style="color: var(--text-main); font-weight: 700; font-size: 1.8rem; margin-bottom: 0.5rem;">داشبورد مدیریتی</h1>
-            <p style="color: var(--text-muted); margin: 0; font-size: 0.95rem;">نمای کلی وضعیت تولید، انبار و فروش</p>
+            <h1 style="color:var(--primary-color);font-weight:800;font-size:1.8rem;margin-bottom:0.4rem;">داشبورد تحلیلی</h1>
+            <p style="color:var(--text-muted);margin:0;font-size:0.9rem;">نمای کلی عملیات — @DateTime.Now.ToString("yyyy/MM/dd")</p>
         </div>
-        <div style="color: var(--text-muted); font-family: var(--font-en); font-size: 0.9rem; background: var(--surface-color); padding: 0.5rem 1rem; border-radius: var(--radius-md); border: 1px solid var(--border-color);">
-            @DateTime.Now.ToString("yyyy/MM/dd - HH:mm")
+        <div style="display:flex;gap:0.75rem;">
+            <button class="btn-primary" @onclick='() => NavManager.NavigateTo("/invoices")'>صدور فاکتور جدید</button>
         </div>
     </div>
 
     @if (isLoading)
     {
-        <div class="card" style="display: flex; justify-content: center; align-items: center; padding: 4rem;">
+        <div class="card" style="display:flex;justify-content:center;align-items:center;padding:5rem;">
             <div class="loader-pulse-ring"></div>
         </div>
     }
     else
     {
-        <!-- آمار اصلی -->
-        <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 1.5rem; margin-bottom: 2.5rem;">
+        <!-- ردیف ۱: KPI اصلی (کلیک‌پذیر) -->
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:1.25rem;margin-bottom:1.5rem;">
 
-            <div class="card">
-                <h3 style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 1rem; font-weight: 500;">فروش این ماه</h3>
-                <div style="display: flex; align-items: baseline; gap: 0.5rem; flex-wrap: wrap;">
-                    <span class="industrial-num" style="font-size: 1.8rem; color: var(--primary-color);">@FormatNumber(monthlySales)</span>
-                    <span style="color: var(--text-muted); font-size: 0.85rem;">ریال</span>
-                </div>
-                <div style="margin-top: 0.75rem; font-size: 0.8rem; color: var(--text-muted);">
-                    <span style="font-family: var(--font-en); color: var(--text-main);">@monthlyInvoiceCount</span> فاکتور صادر شده
+            <div class="card kpi-card" @onclick='() => NavManager.NavigateTo("/invoices")' style="cursor:pointer;border-right:4px solid var(--primary-color);">
+                <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+                    <div>
+                        <p style="color:var(--text-muted);font-size:0.82rem;margin-bottom:0.5rem;">فروش این ماه</p>
+                        <div class="industrial-num" style="font-size:1.7rem;color:var(--primary-color);">@FormatMoney(monthlySales)</div>
+                        <div style="font-size:0.78rem;color:var(--text-muted);margin-top:0.4rem;">
+                            <span class="industrial-num" style="color:var(--text-main);">@monthlyCount</span> فاکتور
+                        </div>
+                    </div>
+                    <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="var(--primary-color)" stroke-width="1.5" opacity="0.4"><line x1="12" y1="1" x2="12" y2="23"></line><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg>
                 </div>
             </div>
 
-            <div class="card">
-                <h3 style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 1rem; font-weight: 500;">سفارشات فعال</h3>
-                <div style="display: flex; align-items: baseline; gap: 0.5rem;">
-                    <span class="industrial-num" style="font-size: 1.8rem; color: var(--accent-color);">@activeInvoiceCount</span>
-                    <span style="color: var(--text-muted); font-size: 0.85rem;">سفارش</span>
-                </div>
-                <div style="margin-top: 0.75rem; font-size: 0.8rem; color: var(--text-muted);">در حال پیگیری و تولید</div>
-            </div>
-
-            <div class="card" style="@(lowStockCount > 0 ? "border-color: var(--danger);" : "")">
-                <h3 style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 1rem; font-weight: 500;">هشدار موجودی انبار</h3>
-                <div style="display: flex; align-items: baseline; gap: 0.5rem;">
-                    <span class="industrial-num" style="font-size: 1.8rem; color: @(lowStockCount > 0 ? "var(--danger)" : "var(--success)");">@lowStockCount</span>
-                    <span style="color: var(--text-muted); font-size: 0.85rem;">کالا</span>
-                </div>
-                <div style="margin-top: 0.75rem; font-size: 0.8rem; color: @(lowStockCount > 0 ? "var(--danger)" : "var(--text-muted)");">
-                    @(lowStockCount > 0 ? "نیاز به شارژ فوری!" : "موجودی مطلوب")
+            <div class="card kpi-card" @onclick='() => NavManager.NavigateTo("/invoices")' style="cursor:pointer;border-right:4px solid var(--accent-color);">
+                <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+                    <div>
+                        <p style="color:var(--text-muted);font-size:0.82rem;margin-bottom:0.5rem;">سفارشات فعال</p>
+                        <div class="industrial-num" style="font-size:1.7rem;color:var(--accent-color);">@activeInvoiceCount</div>
+                        <div style="font-size:0.78rem;color:var(--text-muted);margin-top:0.4rem;">در حال پیگیری</div>
+                    </div>
+                    <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="var(--accent-color)" stroke-width="1.5" opacity="0.4"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>
                 </div>
             </div>
 
-            <div class="card">
-                <h3 style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 1rem; font-weight: 500;">مشتریان CRM</h3>
-                <div style="display: flex; align-items: baseline; gap: 0.5rem;">
-                    <span class="industrial-num" style="font-size: 1.8rem; color: var(--success);">@totalCustomers</span>
-                    <span style="color: var(--text-muted); font-size: 0.85rem;">مشتری</span>
+            <div class="card kpi-card" @onclick='() => NavManager.NavigateTo("/orders")' style="cursor:pointer;border-right:4px solid #8b5cf6;">
+                <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+                    <div>
+                        <p style="color:var(--text-muted);font-size:0.82rem;margin-bottom:0.5rem;">در صف تولید</p>
+                        <div class="industrial-num" style="font-size:1.7rem;color:#8b5cf6;">@pendingProductionCount</div>
+                        <div style="font-size:0.78rem;color:var(--text-muted);margin-top:0.4rem;">دستور کار منتظر</div>
+                    </div>
+                    <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#8b5cf6" stroke-width="1.5" opacity="0.4"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
                 </div>
-                <div style="margin-top: 0.75rem; font-size: 0.8rem; color: var(--text-muted);">ثبت شده در سیستم</div>
             </div>
 
         </div>
 
-        <!-- هشدار موجودی بحرانی -->
-        @if (lowStockProducts.Any())
-        {
-            <div class="card" style="margin-bottom: 1.5rem; padding: 0; border-color: var(--danger);">
-                <div style="padding: 0.75rem 1.5rem; border-bottom: 1px solid var(--border-color); display: flex; align-items: center; gap: 0.5rem;">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--danger)" stroke-width="2.5"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
-                    <span style="font-size: 0.9rem; font-weight: 700; color: var(--danger);">کالاهای رو به اتمام انبار</span>
-                </div>
-                <div style="padding: 1rem 1.5rem; display: flex; gap: 1rem; flex-wrap: wrap;">
-                    @foreach (var p in lowStockProducts)
-                    {
-                        <div style="background: rgba(239,68,68,0.08); border: 1px solid rgba(239,68,68,0.3); padding: 0.5rem 1rem; border-radius: var(--radius-md); min-width: 160px;">
-                            <div style="font-size: 0.75rem; color: var(--text-muted); font-family: var(--font-en);">@p.Code</div>
-                            <div style="font-weight: bold; font-size: 0.85rem; margin: 0.2rem 0;">@p.Name</div>
-                            <div style="color: var(--danger); font-family: var(--font-en); font-weight: bold;">@p.StockQuantity <span style="font-family: var(--font-fa); font-size: 0.8rem;">@p.Unit</span></div>
-                        </div>
-                    }
-                </div>
-            </div>
-        }
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:1.25rem;margin-bottom:2rem;">
 
-        <!-- جدول آخرین فاکتورها -->
-        <div class="card" style="padding: 0;">
-            <div style="padding: 1.25rem 1.5rem; border-bottom: 1px solid var(--border-color);">
-                <h2 style="font-size: 1.05rem; font-weight: 700;">آخرین فاکتورهای صادر شده</h2>
-            </div>
-            @if (!recentInvoices.Any())
-            {
-                <div style="padding: 3rem; text-align: center; color: var(--text-muted);">
-                    <p>هنوز فاکتوری ثبت نشده است.</p>
+            <div class="card kpi-card" @onclick='() => NavManager.NavigateTo("/products")' style="cursor:pointer;border-right:4px solid @(lowStockCount > 0 ? "var(--danger)" : "var(--success)");">
+                <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+                    <div>
+                        <p style="color:var(--text-muted);font-size:0.82rem;margin-bottom:0.5rem;">هشدار موجودی انبار</p>
+                        <div class="industrial-num" style="font-size:1.7rem;color:@(lowStockCount > 0 ? "var(--danger)" : "var(--success)");">@lowStockCount</div>
+                        <div style="font-size:0.78rem;margin-top:0.4rem;color:@(lowStockCount > 0 ? "var(--danger)" : "var(--text-muted)");">
+                            @(lowStockCount > 0 ? "کالا نیاز به شارژ دارد" : "موجودی مطلوب است")
+                        </div>
+                    </div>
+                    <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="@(lowStockCount>0 ? "var(--danger)" : "var(--success)")" stroke-width="1.5" opacity="0.4"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path></svg>
                 </div>
-            }
-            else
-            {
-                <table class="industrial-table" style="width: 100%; border-collapse: collapse;">
+            </div>
+
+            <div class="card kpi-card" @onclick='() => NavManager.NavigateTo("/invoices")' style="cursor:pointer;border-right:4px solid #f97316;">
+                <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+                    <div>
+                        <p style="color:var(--text-muted);font-size:0.82rem;margin-bottom:0.5rem;">نصب برنامه‌ریزی‌شده</p>
+                        <div class="industrial-num" style="font-size:1.7rem;color:#f97316;">@pendingInstallCount</div>
+                        <div style="font-size:0.78rem;color:var(--text-muted);margin-top:0.4rem;">آماده برای نصب</div>
+                    </div>
+                    <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#f97316" stroke-width="1.5" opacity="0.4"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"></path></svg>
+                </div>
+            </div>
+
+            <div class="card kpi-card" @onclick='() => NavManager.NavigateTo("/crm")' style="cursor:pointer;border-right:4px solid var(--success);">
+                <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+                    <div>
+                        <p style="color:var(--text-muted);font-size:0.82rem;margin-bottom:0.5rem;">مشتریان CRM</p>
+                        <div class="industrial-num" style="font-size:1.7rem;color:var(--success);">@totalCustomers</div>
+                        <div style="font-size:0.78rem;color:var(--text-muted);margin-top:0.4rem;">ثبت‌شده در سیستم</div>
+                    </div>
+                    <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="var(--success)" stroke-width="1.5" opacity="0.4"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- ردیف ۲: یادآورهای آینده + کالاهای کم‌موجود -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;margin-bottom:2rem;">
+
+            <!-- یادآورهای نزدیک -->
+            <div class="card" style="padding:0;">
+                <div style="padding:1rem 1.5rem;border-bottom:1px solid var(--border-color);display:flex;justify-content:space-between;align-items:center;">
+                    <span style="font-weight:700;color:var(--text-main);font-size:0.95rem;">یادآورهای پیش رو</span>
+                    <button style="background:none;border:none;color:var(--primary-color);cursor:pointer;font-family:var(--font-fa);font-size:0.8rem;" @onclick='() => NavManager.NavigateTo("/crm")'>مشاهده همه</button>
+                </div>
+                @if (!upcomingReminders.Any())
+                {
+                    <div style="padding:2rem;text-align:center;color:var(--text-muted);font-size:0.85rem;">یادآوری فعالی وجود ندارد</div>
+                }
+                else
+                {
+                    <div style="padding:0.5rem 0;">
+                        @foreach (var r in upcomingReminders)
+                        {
+                            var daysLeft = (r.ReminderDate.Date - DateTime.Now.Date).TotalDays;
+                            var priorityColor = r.Priority == "فوری" ? "var(--danger)" : r.Priority == "مهم" ? "var(--primary-color)" : "var(--accent-color)";
+                            <div style="padding:0.75rem 1.5rem;border-bottom:1px solid var(--border-color);display:flex;align-items:center;gap:1rem;">
+                                <div style="width:8px;height:8px;border-radius:50%;background:@priorityColor;flex-shrink:0;"></div>
+                                <div style="flex-grow:1;">
+                                    <div style="font-size:0.88rem;font-weight:600;color:var(--text-main);">@r.Title</div>
+                                    @if (!string.IsNullOrEmpty(r.CustomerName))
+                                    {
+                                        <div style="font-size:0.75rem;color:var(--text-muted);">@r.CustomerName</div>
+                                    }
+                                </div>
+                                <div style="text-align:left;flex-shrink:0;">
+                                    <div class="industrial-num" style="font-size:0.78rem;color:@(daysLeft<=1 ? "var(--danger)" : daysLeft<=3 ? "var(--primary-color)" : "var(--text-muted)");">
+                                        @(daysLeft == 0 ? "امروز" : daysLeft < 0 ? "گذشته" : $"{(int)daysLeft} روز دیگر")
+                                    </div>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+
+            <!-- کالاهای کم‌موجود -->
+            <div class="card" style="padding:0;">
+                <div style="padding:1rem 1.5rem;border-bottom:1px solid var(--border-color);display:flex;justify-content:space-between;align-items:center;">
+                    <span style="font-weight:700;color:var(--text-main);font-size:0.95rem;">
+                        @if (lowStockCount > 0)
+                        {
+                            <span style="color:var(--danger);">⚠ </span>
+                        }
+                        موجودی بحرانی انبار
+                    </span>
+                    <button style="background:none;border:none;color:var(--primary-color);cursor:pointer;font-family:var(--font-fa);font-size:0.8rem;" @onclick='() => NavManager.NavigateTo("/products")'>رفتن به انبار</button>
+                </div>
+                @if (!lowStockProducts.Any())
+                {
+                    <div style="padding:2rem;text-align:center;color:var(--success);font-size:0.85rem;">✓ تمام کالاها موجودی مناسبی دارند</div>
+                }
+                else
+                {
+                    <div style="padding:0.5rem 0;">
+                        @foreach (var p in lowStockProducts.Take(6))
+                        {
+                            var pct = p.MinStockAlert > 0 ? Math.Min(100, (p.StockQuantity / p.MinStockAlert) * 100) : 0;
+                            <div style="padding:0.6rem 1.5rem;border-bottom:1px solid var(--border-color);">
+                                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.3rem;">
+                                    <span style="font-size:0.85rem;color:var(--text-main);font-weight:600;">@p.Name</span>
+                                    <span class="industrial-num" style="font-size:0.78rem;color:@(p.StockQuantity == 0 ? "var(--danger)" : "var(--primary-color)");">@p.StockQuantity @p.Unit</span>
+                                </div>
+                                <div style="height:4px;background:var(--border-color);border-radius:2px;">
+                                    <div style="height:100%;width:@(pct.ToString("0"))%;background:@(pct<30 ? "var(--danger)" : "var(--primary-color)");border-radius:2px;"></div>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+
+        </div>
+
+        <!-- ردیف ۳: آخرین فاکتورها + صف تولید -->
+        <div style="display:grid;grid-template-columns:3fr 2fr;gap:1.5rem;">
+
+            <!-- آخرین فاکتورها -->
+            <div class="card" style="padding:0;">
+                <div style="padding:1rem 1.5rem;border-bottom:1px solid var(--border-color);display:flex;justify-content:space-between;align-items:center;">
+                    <span style="font-weight:700;color:var(--text-main);font-size:0.95rem;">آخرین فاکتورها</span>
+                    <button style="background:none;border:none;color:var(--primary-color);cursor:pointer;font-family:var(--font-fa);font-size:0.8rem;" @onclick='() => NavManager.NavigateTo("/invoices")'>مشاهده همه</button>
+                </div>
+                <table style="width:100%;border-collapse:collapse;">
                     <thead>
-                        <tr>
-                            <th style="padding: 1rem 1.5rem; text-align: right;">شماره سند</th>
-                            <th style="padding: 1rem 1.5rem; text-align: right;">مشتری</th>
-                            <th style="padding: 1rem 1.5rem; text-align: right;">وضعیت</th>
-                            <th style="padding: 1rem 1.5rem; text-align: right;">مبلغ نهایی (ریال)</th>
-                            <th style="padding: 1rem 1.5rem; text-align: right;">تاریخ</th>
+                        <tr style="border-bottom:1px solid var(--border-color);">
+                            <th style="padding:0.7rem 1rem;text-align:right;font-size:0.78rem;color:var(--text-muted);font-weight:600;">شماره / مشتری</th>
+                            <th style="padding:0.7rem 1rem;text-align:right;font-size:0.78rem;color:var(--text-muted);font-weight:600;">مرحله</th>
+                            <th style="padding:0.7rem 1rem;text-align:left;font-size:0.78rem;color:var(--text-muted);font-weight:600;">مبلغ (ریال)</th>
                         </tr>
                     </thead>
                     <tbody>
                         @foreach (var inv in recentInvoices)
                         {
-                            <tr class="table-row-hover">
-                                <td style="padding: 1rem 1.5rem; font-family: var(--font-en); color: var(--primary-color); font-weight: bold;">@inv.InvoiceNumber</td>
-                                <td style="padding: 1rem 1.5rem; font-weight: bold;">@inv.CustomerName</td>
-                                <td style="padding: 1rem 1.5rem; font-size: 0.9rem;">
-                                    @if (inv.Status == "تحویل شده") { <span style="color: var(--accent-color); font-weight: bold;">@inv.Status</span> }
-                                    else if (inv.Status == "در حال ارسال") { <span style="color: var(--primary-color); font-weight: bold;">@inv.Status</span> }
-                                    else if (inv.Status == "آماده تحویل") { <span style="color: var(--success); font-weight: bold;">@inv.Status</span> }
-                                    else { <span style="color: var(--text-muted);">@inv.Status</span> }
+                            <tr style="border-bottom:1px solid var(--border-color);" class="table-row-hover">
+                                <td style="padding:0.7rem 1rem;">
+                                    <div class="industrial-num" style="font-size:0.82rem;color:var(--primary-color);">@inv.InvoiceNumber</div>
+                                    <div style="font-size:0.78rem;color:var(--text-muted);">@inv.CustomerName</div>
                                 </td>
-                                <td style="padding: 1rem 1.5rem; font-family: var(--font-en); color: var(--success); font-weight: bold;">@inv.FinalAmount.ToString("N0")</td>
-                                <td style="padding: 1rem 1.5rem; font-family: var(--font-en); color: var(--text-muted); font-size: 0.85rem;">@inv.InvoiceDate.ToString("yyyy/MM/dd")</td>
+                                <td style="padding:0.7rem 1rem;">
+                                    <span style="font-size:0.78rem;padding:0.2rem 0.5rem;border-radius:3px;background:@GetStepBg(inv.CurrentStep);color:@GetStepColor(inv.CurrentStep);">@inv.Status</span>
+                                </td>
+                                <td style="padding:0.7rem 1rem;text-align:left;" class="industrial-num">
+                                    <span style="font-size:0.82rem;color:var(--success);">@FormatMoney(inv.FinalAmount)</span>
+                                </td>
                             </tr>
                         }
                     </tbody>
                 </table>
-            }
+            </div>
+
+            <!-- صف تولید فعال -->
+            <div class="card" style="padding:0;">
+                <div style="padding:1rem 1.5rem;border-bottom:1px solid var(--border-color);display:flex;justify-content:space-between;align-items:center;">
+                    <span style="font-weight:700;color:var(--text-main);font-size:0.95rem;">صف تولید</span>
+                    <button style="background:none;border:none;color:var(--primary-color);cursor:pointer;font-family:var(--font-fa);font-size:0.8rem;" @onclick='() => NavManager.NavigateTo("/orders")'>مشاهده همه</button>
+                </div>
+                @if (!productionQueue.Any())
+                {
+                    <div style="padding:2rem;text-align:center;color:var(--text-muted);font-size:0.85rem;">صف تولید خالی است</div>
+                }
+                else
+                {
+                    <div style="padding:0.5rem 0;">
+                        @foreach (var ord in productionQueue)
+                        {
+                            var isOverdue = ord.ExpectedDelivery < DateTime.Now;
+                            <div style="padding:0.75rem 1.5rem;border-bottom:1px solid var(--border-color);">
+                                <div style="display:flex;justify-content:space-between;align-items:center;">
+                                    <div>
+                                        <div class="industrial-num" style="font-size:0.82rem;color:var(--primary-color);">@ord.OrderNumber</div>
+                                        <div style="font-size:0.78rem;color:var(--text-muted);">@ord.CustomerName</div>
+                                    </div>
+                                    <div style="text-align:left;">
+                                        <div style="font-size:0.75rem;padding:0.15rem 0.45rem;border-radius:3px;background:@GetOrderStatusBg(ord.Status);color:@GetOrderStatusColor(ord.Status);">@ord.Status</div>
+                                        @if (isOverdue)
+                                        {
+                                            <div style="font-size:0.7rem;color:var(--danger);margin-top:0.2rem;">تاخیر دارد</div>
+                                        }
+                                    </div>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+
         </div>
     }
 </div>
+
+<style>
+    .kpi-card:hover { border-color: var(--primary-color) !important; }
+    .table-row-hover:hover { background: rgba(245,158,11,0.04); }
+</style>
 
 @code {
     private AppDbContext _db = null!;
     private bool isLoading = true;
 
     private decimal monthlySales;
-    private int monthlyInvoiceCount;
+    private int monthlyCount;
     private int activeInvoiceCount;
+    private int pendingProductionCount;
     private int lowStockCount;
+    private int pendingInstallCount;
     private int totalCustomers;
-    private List<Invoice> recentInvoices = new();
+
     private List<Product> lowStockProducts = new();
+    private List<Invoice> recentInvoices = new();
+    private List<Order> productionQueue = new();
+    private List<CustomerReminder> upcomingReminders = new();
 
     protected override async Task OnInitializedAsync()
     {
         _db = await DbFactory.CreateDbContextAsync();
-        await LoadDashboardData();
+        await LoadData();
     }
 
-    private async Task LoadDashboardData()
+    private async Task LoadData()
     {
         isLoading = true;
         try
         {
             var now = DateTime.Now;
+            var monthStart = new DateTime(now.Year, now.Month, 1);
 
-            monthlySales = await _db.Invoices
-                .Where(i => i.InvoiceDate.Year == now.Year && i.InvoiceDate.Month == now.Month)
-                .SumAsync(i => i.FinalAmount);
+            var monthlyInvoices = await _db.Invoices.AsNoTracking()
+                .Where(i => i.InvoiceDate >= monthStart)
+                .ToListAsync();
+            monthlySales = monthlyInvoices.Sum(i => i.FinalAmount);
+            monthlyCount = monthlyInvoices.Count;
 
-            monthlyInvoiceCount = await _db.Invoices
-                .CountAsync(i => i.InvoiceDate.Year == now.Year && i.InvoiceDate.Month == now.Month);
+            activeInvoiceCount = await _db.Invoices.AsNoTracking()
+                .CountAsync(i => i.Status != "تکمیل شده" && i.Status != "تحویل شده");
 
-            activeInvoiceCount = await _db.Invoices
-                .CountAsync(i => i.Status != "تحویل شده");
+            pendingProductionCount = await _db.Orders.AsNoTracking()
+                .CountAsync(o => o.Status != "آماده تحویل");
 
-            lowStockCount = await _db.Products
-                .CountAsync(p => p.StockQuantity <= 5);
+            lowStockProducts = await _db.Products.AsNoTracking()
+                .Where(p => p.IsActive && p.StockQuantity <= p.MinStockAlert)
+                .OrderBy(p => p.StockQuantity)
+                .ToListAsync();
+            lowStockCount = lowStockProducts.Count;
 
-            totalCustomers = await _db.Customers.CountAsync();
+            pendingInstallCount = await _db.Invoices.AsNoTracking()
+                .CountAsync(i => i.CurrentStep == 5);
 
-            recentInvoices = await _db.Invoices
-                .AsNoTracking()
+            totalCustomers = await _db.Customers.AsNoTracking().CountAsync(c => c.IsActive);
+
+            recentInvoices = await _db.Invoices.AsNoTracking()
                 .OrderByDescending(i => i.Id)
                 .Take(8)
                 .ToListAsync();
 
-            lowStockProducts = await _db.Products
-                .AsNoTracking()
-                .Where(p => p.StockQuantity <= 5)
-                .OrderBy(p => p.StockQuantity)
+            productionQueue = await _db.Orders.AsNoTracking()
+                .Where(o => o.Status != "آماده تحویل")
+                .OrderBy(o => o.ExpectedDelivery)
+                .Take(6)
+                .ToListAsync();
+
+            upcomingReminders = await _db.CustomerReminders.AsNoTracking()
+                .Where(r => !r.IsDismissed && r.ReminderDate >= DateTime.Now.AddDays(-1))
+                .OrderBy(r => r.ReminderDate)
+                .Take(5)
                 .ToListAsync();
         }
-        catch (Exception) { }
+        catch { }
         finally { isLoading = false; }
     }
 
-    private string FormatNumber(decimal n)
+    private string FormatMoney(decimal amount)
     {
-        if (n >= 1_000_000_000) return $"{n / 1_000_000_000:N1}G";
-        if (n >= 1_000_000) return $"{n / 1_000_000:N1}M";
-        if (n == 0) return "---";
-        return n.ToString("N0");
+        if (amount >= 1_000_000_000) return $"{(amount / 1_000_000_000m):0.##}م";
+        if (amount >= 1_000_000) return $"{(amount / 1_000_000m):0.##}م";
+        return amount.ToString("N0");
     }
+
+    private string GetStepColor(int step) => step switch
+    {
+        1 => "var(--text-muted)",
+        2 => "#8b5cf6",
+        3 => "var(--accent-color)",
+        4 => "var(--primary-color)",
+        5 => "#f97316",
+        6 => "var(--success)",
+        _ => "var(--text-muted)"
+    };
+
+    private string GetStepBg(int step) => step switch
+    {
+        1 => "rgba(161,161,170,0.1)",
+        2 => "rgba(139,92,246,0.15)",
+        3 => "rgba(59,130,246,0.15)",
+        4 => "rgba(245,158,11,0.15)",
+        5 => "rgba(249,115,22,0.15)",
+        6 => "rgba(16,185,129,0.15)",
+        _ => "rgba(161,161,170,0.1)"
+    };
+
+    private string GetOrderStatusColor(string status) => status switch
+    {
+        "در انتظار بررسی" => "var(--text-muted)",
+        "در حال ساخت" => "var(--primary-color)",
+        "آماده تحویل" => "var(--success)",
+        _ => "var(--text-muted)"
+    };
+
+    private string GetOrderStatusBg(string status) => status switch
+    {
+        "در انتظار بررسی" => "rgba(161,161,170,0.1)",
+        "در حال ساخت" => "rgba(245,158,11,0.15)",
+        "آماده تحویل" => "rgba(16,185,129,0.15)",
+        _ => "rgba(161,161,170,0.1)"
+    };
 
     public void Dispose() => _db?.Dispose();
 }
