@@ -33,6 +33,7 @@ namespace SmartERP
             builder.Services.AddDbContextFactory<AppDbContext>(options =>
                 options.UseSqlite($"Data Source={dbPath}"));
 
+            // هر Razor component باید از IDbContextFactory تزریق کند — این ثبت برای سازگاری نگهداری می‌شود
             builder.Services.AddTransient<AppDbContext>(sp =>
                 sp.GetRequiredService<IDbContextFactory<AppDbContext>>().CreateDbContext());
 
@@ -43,10 +44,10 @@ namespace SmartERP
             {
                 try
                 {
-                    // ایجاد جداول جدید در نصب تازه
+                    // نصب تازه: تمام جداول تعریف‌شده در DbContext را می‌سازد
                     db.Database.EnsureCreated();
 
-                    // اعمال ستون‌های جدید روی دیتابیس‌های موجود (مهاجرت بدون حذف داده)
+                    // نصب موجود: جداول جدید و ستون‌های جدید را به‌صورت ایمن اضافه می‌کند
                     ApplySchemaUpgrades(db);
                 }
                 catch (Exception ex)
@@ -60,12 +61,93 @@ namespace SmartERP
 
         private static void ApplySchemaUpgrades(AppDbContext db)
         {
-            // هر ALTER TABLE در صورت وجود ستون با try/catch نادیده گرفته می‌شود.
-            // این روش ایمن‌ترین راه برای به‌روزرسانی SQLite بدون از دست دادن داده است.
+            // ─── جداول جدید (CREATE TABLE IF NOT EXISTS) ──────────────────────
+            // این دستورات فقط وقتی جدول وجود نداشته باشد اجرا می‌شوند.
 
-            var upgrades = new[]
+            var newTables = new[]
             {
-                // ── Products ──────────────────────────────────────────────
+                @"CREATE TABLE IF NOT EXISTS ""Personnel"" (
+                    ""Id""           INTEGER NOT NULL CONSTRAINT ""PK_Personnel"" PRIMARY KEY AUTOINCREMENT,
+                    ""FullName""     TEXT    NOT NULL DEFAULT '',
+                    ""Role""         TEXT    NOT NULL DEFAULT 'نصاب',
+                    ""PhoneNumber""  TEXT    NOT NULL DEFAULT '',
+                    ""NationalId""   TEXT    NOT NULL DEFAULT '',
+                    ""Skills""       TEXT    NOT NULL DEFAULT '',
+                    ""AvatarBase64"" TEXT    NOT NULL DEFAULT '',
+                    ""Status""       TEXT    NOT NULL DEFAULT 'فعال',
+                    ""Notes""        TEXT    NOT NULL DEFAULT '',
+                    ""HireDate""     TEXT    NOT NULL DEFAULT '2024-01-01 00:00:00',
+                    ""IsActive""     INTEGER NOT NULL DEFAULT 1
+                )",
+
+                @"CREATE TABLE IF NOT EXISTS ""CustomerReminders"" (
+                    ""Id""           INTEGER NOT NULL CONSTRAINT ""PK_CustomerReminders"" PRIMARY KEY AUTOINCREMENT,
+                    ""CustomerId""   INTEGER,
+                    ""CustomerName"" TEXT    NOT NULL DEFAULT '',
+                    ""ReminderDate"" TEXT    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    ""Title""        TEXT    NOT NULL DEFAULT '',
+                    ""Description""  TEXT    NOT NULL DEFAULT '',
+                    ""IsDismissed""  INTEGER NOT NULL DEFAULT 0,
+                    ""Priority""     TEXT    NOT NULL DEFAULT 'متوسط',
+                    ""CreatedAt""    TEXT    NOT NULL DEFAULT CURRENT_TIMESTAMP
+                )",
+
+                @"CREATE TABLE IF NOT EXISTS ""CustomerActivities"" (
+                    ""Id""           INTEGER NOT NULL CONSTRAINT ""PK_CustomerActivities"" PRIMARY KEY AUTOINCREMENT,
+                    ""CustomerId""   INTEGER NOT NULL DEFAULT 0,
+                    ""ActivityDate"" TEXT    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    ""ActivityType"" TEXT    NOT NULL DEFAULT 'تماس',
+                    ""Subject""      TEXT    NOT NULL DEFAULT '',
+                    ""Description""  TEXT    NOT NULL DEFAULT '',
+                    ""Outcome""      TEXT    NOT NULL DEFAULT '',
+                    ""OperatorName"" TEXT    NOT NULL DEFAULT 'مدیر سیستم'
+                )",
+
+                @"CREATE TABLE IF NOT EXISTS ""AfterSalesTickets"" (
+                    ""Id""                      INTEGER NOT NULL CONSTRAINT ""PK_AfterSalesTickets"" PRIMARY KEY AUTOINCREMENT,
+                    ""InvoiceId""               INTEGER,
+                    ""InvoiceNumber""            TEXT    NOT NULL DEFAULT '',
+                    ""CustomerName""             TEXT    NOT NULL DEFAULT '',
+                    ""CustomerPhone""            TEXT    NOT NULL DEFAULT '',
+                    ""IssueType""               TEXT    NOT NULL DEFAULT 'خرابی',
+                    ""Description""              TEXT    NOT NULL DEFAULT '',
+                    ""Status""                  TEXT    NOT NULL DEFAULT 'باز',
+                    ""AssignedTechnicianId""     INTEGER,
+                    ""AssignedTechnicianName""   TEXT    NOT NULL DEFAULT '',
+                    ""ReportedDate""             TEXT    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    ""ResolvedDate""             TEXT,
+                    ""Resolution""              TEXT    NOT NULL DEFAULT ''
+                )",
+
+                @"CREATE TABLE IF NOT EXISTS ""CalendarEvents"" (
+                    ""Id""           INTEGER NOT NULL CONSTRAINT ""PK_CalendarEvents"" PRIMARY KEY AUTOINCREMENT,
+                    ""JalaliDate""   TEXT    NOT NULL DEFAULT '',
+                    ""Title""        TEXT    NOT NULL DEFAULT '',
+                    ""EventType""    TEXT    NOT NULL DEFAULT 'یادآوری',
+                    ""Description""  TEXT    NOT NULL DEFAULT '',
+                    ""AuthorRole""   TEXT    NOT NULL DEFAULT 'عمومی',
+                    ""AuthorName""   TEXT    NOT NULL DEFAULT 'مدیر سیستم',
+                    ""CreatedAt""    TEXT    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    ""CheckAmount""  REAL,
+                    ""CheckNumber""  TEXT    NOT NULL DEFAULT ''
+                )"
+            };
+
+            foreach (var sql in newTables)
+            {
+                try { db.Database.ExecuteSqlRaw(sql); }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"Table create error: {ex.Message}");
+                }
+            }
+
+            // ─── ستون‌های جدید روی جداول موجود (ALTER TABLE) ─────────────────
+            // هر ALTER در صورت تکرار توسط catch نادیده گرفته می‌شود.
+
+            var columnUpgrades = new[]
+            {
+                // ── Products ──────────────────────────────────────────────────
                 "ALTER TABLE \"Products\" ADD COLUMN \"Description\" TEXT NOT NULL DEFAULT ''",
                 "ALTER TABLE \"Products\" ADD COLUMN \"Category\" TEXT NOT NULL DEFAULT 'محصول نهایی'",
                 "ALTER TABLE \"Products\" ADD COLUMN \"SubCategory\" TEXT NOT NULL DEFAULT ''",
@@ -83,13 +165,13 @@ namespace SmartERP
                 "ALTER TABLE \"Products\" ADD COLUMN \"IsActive\" INTEGER NOT NULL DEFAULT 1",
                 "ALTER TABLE \"Products\" ADD COLUMN \"CreatedAt\" TEXT NOT NULL DEFAULT '2024-01-01 00:00:00'",
 
-                // ── Customers ─────────────────────────────────────────────
+                // ── Customers ─────────────────────────────────────────────────
                 "ALTER TABLE \"Customers\" ADD COLUMN \"City\" TEXT NOT NULL DEFAULT ''",
                 "ALTER TABLE \"Customers\" ADD COLUMN \"Province\" TEXT NOT NULL DEFAULT ''",
                 "ALTER TABLE \"Customers\" ADD COLUMN \"LeadSource\" TEXT NOT NULL DEFAULT ''",
                 "ALTER TABLE \"Customers\" ADD COLUMN \"ReferredBy\" TEXT NOT NULL DEFAULT ''",
 
-                // ── Invoices ──────────────────────────────────────────────
+                // ── Invoices ──────────────────────────────────────────────────
                 "ALTER TABLE \"Invoices\" ADD COLUMN \"CurrentStep\" INTEGER NOT NULL DEFAULT 1",
                 "ALTER TABLE \"Invoices\" ADD COLUMN \"Step1Notes\" TEXT NOT NULL DEFAULT ''",
                 "ALTER TABLE \"Invoices\" ADD COLUMN \"Step2Notes\" TEXT NOT NULL DEFAULT ''",
@@ -108,7 +190,7 @@ namespace SmartERP
                 "ALTER TABLE \"Invoices\" ADD COLUMN \"InstallationNotes\" TEXT NOT NULL DEFAULT ''",
                 "ALTER TABLE \"Invoices\" ADD COLUMN \"AfterSaleNotes\" TEXT NOT NULL DEFAULT ''",
 
-                // ── CompanySettings ───────────────────────────────────────
+                // ── CompanySettings ───────────────────────────────────────────
                 "ALTER TABLE \"CompanySettings\" ADD COLUMN \"LegalName\" TEXT NOT NULL DEFAULT ''",
                 "ALTER TABLE \"CompanySettings\" ADD COLUMN \"TaxId\" TEXT NOT NULL DEFAULT ''",
                 "ALTER TABLE \"CompanySettings\" ADD COLUMN \"SecondaryPhone\" TEXT NOT NULL DEFAULT ''",
@@ -120,16 +202,10 @@ namespace SmartERP
                 "ALTER TABLE \"CompanySettings\" ADD COLUMN \"CardNumber\" TEXT NOT NULL DEFAULT ''",
             };
 
-            foreach (var sql in upgrades)
+            foreach (var sql in columnUpgrades)
             {
-                try
-                {
-                    db.Database.ExecuteSqlRaw(sql);
-                }
-                catch
-                {
-                    // ستون از قبل وجود دارد — نادیده گرفته می‌شود
-                }
+                try { db.Database.ExecuteSqlRaw(sql); }
+                catch { /* ستون از قبل وجود دارد — نادیده گرفته می‌شود */ }
             }
         }
     }

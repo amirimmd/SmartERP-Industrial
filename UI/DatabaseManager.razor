@@ -1,0 +1,313 @@
+@page "/database-manager"
+@implements IDisposable
+@inject IDbContextFactory<AppDbContext> DbFactory
+@inject NavigationManager Nav
+@using Microsoft.Data.Sqlite
+@using System.IO
+
+<div style="padding:0 0 2rem;">
+    <div style="display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:2rem;">
+        <div>
+            <h1 style="color:var(--primary-color);font-weight:800;font-size:1.8rem;margin-bottom:0.4rem;">مدیریت پایگاه داده</h1>
+            <p style="color:var(--text-muted);margin:0;font-size:0.9rem;">پشتیبان‌گیری، بازیابی و بازنشانی کامل سیستم</p>
+        </div>
+        <div style="display:flex;align-items:center;gap:0.5rem;font-size:0.82rem;color:var(--text-muted);">
+            <span style="width:8px;height:8px;border-radius:50%;background:var(--success);display:inline-block;box-shadow:0 0 6px var(--success);"></span>
+            آنلاین — دیتابیس متصل
+        </div>
+    </div>
+
+    <!-- پیام نتیجه -->
+    @if (!string.IsNullOrEmpty(message))
+    {
+        <div style="padding:0.9rem 1.25rem;border-radius:var(--radius-md);font-size:0.88rem;margin-bottom:1.5rem;
+                    background:@(isError ? "rgba(239,68,68,0.1)" : "rgba(16,185,129,0.1)");
+                    border:1px solid @(isError ? "var(--danger)" : "var(--success)");
+                    color:@(isError ? "var(--danger)" : "var(--success)");">
+            @message
+        </div>
+    }
+
+    <!-- اطلاعات فایل دیتابیس -->
+    <div class="card" style="padding:1.5rem;margin-bottom:1.5rem;">
+        <h3 style="font-size:1rem;font-weight:700;color:var(--text-main);margin-bottom:1rem;border-bottom:1px solid var(--border-color);padding-bottom:0.75rem;">اطلاعات پایگاه داده فعلی</h3>
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:1rem;">
+            <div style="background:var(--bg-color);border-radius:var(--radius-md);padding:1rem;border:1px solid var(--border-color);">
+                <div style="font-size:0.75rem;color:var(--text-muted);margin-bottom:0.3rem;">مسیر فایل</div>
+                <div style="font-size:0.78rem;color:var(--text-main);word-break:break-all;font-family:var(--font-en);">@dbPath</div>
+            </div>
+            <div style="background:var(--bg-color);border-radius:var(--radius-md);padding:1rem;border:1px solid var(--border-color);">
+                <div style="font-size:0.75rem;color:var(--text-muted);margin-bottom:0.3rem;">حجم فایل</div>
+                <div style="font-size:1.2rem;font-weight:700;color:var(--primary-color);" class="industrial-num">@dbSize</div>
+            </div>
+            <div style="background:var(--bg-color);border-radius:var(--radius-md);padding:1rem;border:1px solid var(--border-color);">
+                <div style="font-size:0.75rem;color:var(--text-muted);margin-bottom:0.3rem;">آخرین تغییر</div>
+                <div style="font-size:0.82rem;color:var(--text-main);" class="industrial-num">@dbLastModified</div>
+            </div>
+        </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;margin-bottom:1.5rem;">
+
+        <!-- ── صدور نسخه پشتیبان ────────────────────────────────────────── -->
+        <div class="card" style="padding:1.5rem;border-top:3px solid var(--primary-color);">
+            <div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:1rem;">
+                <div style="width:42px;height:42px;border-radius:var(--radius-md);background:rgba(56,189,248,0.1);display:flex;align-items:center;justify-content:center;">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--primary-color)" stroke-width="2">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                        <polyline points="7 10 12 15 17 10"></polyline>
+                        <line x1="12" y1="15" x2="12" y2="3"></line>
+                    </svg>
+                </div>
+                <div>
+                    <div style="font-weight:700;color:var(--text-main);">صدور نسخه پشتیبان</div>
+                    <div style="font-size:0.78rem;color:var(--text-muted);">کپی کامل دیتابیس روی دسکتاپ</div>
+                </div>
+            </div>
+            <p style="font-size:0.82rem;color:var(--text-muted);margin-bottom:1.25rem;line-height:1.7;">
+                یک فایل <span style="font-family:var(--font-en);color:var(--primary-color);">.db</span> با تاریخ و زمان کنونی در دسکتاپ شما ذخیره می‌شود. هیچ داده‌ای حذف نمی‌گردد.
+            </p>
+            <button class="btn-primary" style="width:100%;" @onclick="BackupDatabase" disabled="@isBusy">
+                @if (isBackingUp) { <span>در حال پشتیبان‌گیری...</span> } else { <span>دریافت نسخه پشتیبان</span> }
+            </button>
+        </div>
+
+        <!-- ── بازیابی از فایل پشتیبان ──────────────────────────────────── -->
+        <div class="card" style="padding:1.5rem;border-top:3px solid var(--warning, #f59e0b);">
+            <div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:1rem;">
+                <div style="width:42px;height:42px;border-radius:var(--radius-md);background:rgba(245,158,11,0.1);display:flex;align-items:center;justify-content:center;">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                        <polyline points="17 8 12 3 7 8"></polyline>
+                        <line x1="12" y1="3" x2="12" y2="15"></line>
+                    </svg>
+                </div>
+                <div>
+                    <div style="font-weight:700;color:var(--text-main);">بازیابی از پشتیبان</div>
+                    <div style="font-size:0.78rem;color:var(--text-muted);">جایگزین کردن دیتابیس با فایل پشتیبان</div>
+                </div>
+            </div>
+            <p style="font-size:0.82rem;color:var(--text-muted);margin-bottom:1.25rem;line-height:1.7;">
+                فایل <span style="font-family:var(--font-en);color:#f59e0b;">.db</span> پشتیبان را انتخاب کنید. <strong style="color:#f59e0b;">دیتابیس فعلی جایگزین می‌شود.</strong> پس از بازیابی برنامه باید مجدداً راه‌اندازی شود.
+            </p>
+            <button style="width:100%;padding:0.65rem;border-radius:var(--radius-md);cursor:pointer;font-family:var(--font-fa);font-weight:bold;font-size:0.9rem;background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.4);color:#f59e0b;"
+                    @onclick="RestoreDatabase" disabled="@isBusy">
+                @if (isRestoring) { <span>در حال بازیابی...</span> } else { <span>انتخاب فایل و بازیابی</span> }
+            </button>
+        </div>
+    </div>
+
+    <!-- ── بازنشانی کارخانه‌ای ────────────────────────────────────────────── -->
+    <div class="card" style="padding:1.5rem;border:1px solid rgba(239,68,68,0.3);">
+        <div style="display:flex;align-items:flex-start;gap:1.25rem;">
+            <div style="width:42px;height:42px;border-radius:var(--radius-md);background:rgba(239,68,68,0.1);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--danger)" stroke-width="2">
+                    <polyline points="3 6 5 6 21 6"></polyline>
+                    <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path>
+                    <path d="M10 11v6"></path><path d="M14 11v6"></path>
+                    <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"></path>
+                </svg>
+            </div>
+            <div style="flex:1;">
+                <div style="font-weight:700;color:var(--danger);font-size:1rem;margin-bottom:0.3rem;">بازنشانی کامل (Factory Reset)</div>
+                <p style="font-size:0.82rem;color:var(--text-muted);margin:0 0 1rem;line-height:1.7;">
+                    این عملیات <strong style="color:var(--danger);">تمام داده‌های سیستم را به‌طور دائمی پاک می‌کند</strong> و دیتابیس را به حالت اولیه باز می‌گرداند. پیش از انجام این عملیات حتماً نسخه پشتیبان تهیه کنید.
+                </p>
+                @if (!showWipeConfirm)
+                {
+                    <button style="padding:0.55rem 1.5rem;border-radius:var(--radius-md);cursor:pointer;font-family:var(--font-fa);font-weight:bold;font-size:0.88rem;background:none;border:1px solid rgba(239,68,68,0.4);color:var(--danger);"
+                            @onclick="() => showWipeConfirm = true" disabled="@isBusy">
+                        بازنشانی کارخانه‌ای...
+                    </button>
+                }
+                else
+                {
+                    <div style="background:rgba(239,68,68,0.05);border:1px solid rgba(239,68,68,0.3);border-radius:var(--radius-md);padding:1rem;margin-bottom:0.75rem;">
+                        <div style="font-size:0.85rem;color:var(--danger);font-weight:700;margin-bottom:0.75rem;">برای تأیید، عبارت زیر را تایپ کنید:</div>
+                        <code style="font-family:var(--font-en);background:rgba(239,68,68,0.1);padding:0.2rem 0.5rem;border-radius:4px;color:var(--danger);">DELETE ALL DATA</code>
+                        <input type="text" @bind="wipeConfirmText" class="input-field"
+                               placeholder="عبارت تأیید را اینجا تایپ کنید"
+                               style="margin:0.75rem 0 0;direction:ltr;font-family:var(--font-en);font-size:0.9rem;border-color:rgba(239,68,68,0.3);" />
+                    </div>
+                    <div style="display:flex;gap:0.75rem;">
+                        <button style="padding:0.55rem 1.25rem;border-radius:var(--radius-md);cursor:pointer;font-family:var(--font-fa);font-weight:bold;font-size:0.88rem;background:var(--danger);border:none;color:white;"
+                                @onclick="WipeDatabase"
+                                disabled="@(isBusy || wipeConfirmText != "DELETE ALL DATA")">
+                            @if (isWiping) { <span>در حال پاک‌سازی...</span> } else { <span>بله، همه داده‌ها را پاک کن</span> }
+                        </button>
+                        <button style="padding:0.55rem 1rem;border-radius:var(--radius-md);cursor:pointer;font-family:var(--font-fa);font-size:0.88rem;background:none;border:1px solid var(--border-color);color:var(--text-muted);"
+                                @onclick="CancelWipe">
+                            انصراف
+                        </button>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private AppDbContext _db = null!;
+    private string dbPath = "";
+    private string dbSize = "---";
+    private string dbLastModified = "---";
+
+    private bool isBusy => isBackingUp || isRestoring || isWiping;
+    private bool isBackingUp = false;
+    private bool isRestoring = false;
+    private bool isWiping = false;
+
+    private bool showWipeConfirm = false;
+    private string wipeConfirmText = "";
+    private string message = "";
+    private bool isError = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _db = await DbFactory.CreateDbContextAsync();
+        dbPath = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "SmartERP_Database.db");
+        RefreshFileInfo();
+    }
+
+    private void RefreshFileInfo()
+    {
+        try
+        {
+            if (File.Exists(dbPath))
+            {
+                var info = new FileInfo(dbPath);
+                dbSize = FormatBytes(info.Length);
+                dbLastModified = info.LastWriteTime.ToString("yyyy/MM/dd  HH:mm");
+            }
+        }
+        catch { }
+    }
+
+    private void CancelWipe() { showWipeConfirm = false; wipeConfirmText = ""; }
+
+    private static string FormatBytes(long bytes)
+    {
+        if (bytes < 1024) return $"{bytes} B";
+        if (bytes < 1024 * 1024) return $"{bytes / 1024.0:F1} KB";
+        return $"{bytes / (1024.0 * 1024):F2} MB";
+    }
+
+    // ─── صدور پشتیبان ──────────────────────────────────────────────────────
+    private async Task BackupDatabase()
+    {
+        isBackingUp = true;
+        message = ""; isError = false;
+        StateHasChanged();
+        try
+        {
+            var desktop = Environment.GetFolderPath(Environment.SpecialFolder.Desktop);
+            var stamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
+            var dest = Path.Combine(desktop, $"SmartERP_Backup_{stamp}.db");
+
+            // چک‌پوینت WAL تا اطمینان از یکپارچگی فایل
+            await using var db = await DbFactory.CreateDbContextAsync();
+            await db.Database.ExecuteSqlRawAsync("PRAGMA wal_checkpoint(FULL)");
+
+            File.Copy(dbPath, dest, overwrite: true);
+            message = $"پشتیبان با موفقیت در مسیر زیر ذخیره شد:\n{dest}";
+        }
+        catch (Exception ex)
+        {
+            message = $"خطا در پشتیبان‌گیری: {ex.Message}";
+            isError = true;
+        }
+        finally
+        {
+            isBackingUp = false;
+            RefreshFileInfo();
+        }
+    }
+
+    // ─── بازیابی از پشتیبان ────────────────────────────────────────────────
+    private async Task RestoreDatabase()
+    {
+        isRestoring = true;
+        message = ""; isError = false;
+        StateHasChanged();
+        try
+        {
+            var result = await FilePicker.Default.PickAsync(new PickOptions
+            {
+                PickerTitle = "فایل پشتیبان SmartERP را انتخاب کنید",
+                FileTypes = new FilePickerFileType(
+                    new Dictionary<DevicePlatform, IEnumerable<string>>
+                    {
+                        { DevicePlatform.WinUI, new[] { ".db" } },
+                        { DevicePlatform.MacCatalyst, new[] { "public.database" } }
+                    })
+            });
+
+            if (result == null) { isRestoring = false; return; }
+
+            // بستن تمام اتصالات باز SQLite
+            SqliteConnection.ClearAllPools();
+            await Task.Delay(300);
+
+            File.Copy(result.FullPath, dbPath, overwrite: true);
+
+            message = "بازیابی با موفقیت انجام شد. لطفاً برنامه را مجدداً راه‌اندازی کنید.";
+            RefreshFileInfo();
+        }
+        catch (Exception ex)
+        {
+            message = $"خطا در بازیابی: {ex.Message}";
+            isError = true;
+        }
+        finally
+        {
+            isRestoring = false;
+        }
+    }
+
+    // ─── بازنشانی کارخانه‌ای ───────────────────────────────────────────────
+    private async Task WipeDatabase()
+    {
+        if (wipeConfirmText != "DELETE ALL DATA") return;
+
+        isWiping = true;
+        message = ""; isError = false;
+        StateHasChanged();
+        try
+        {
+            // بستن تمام اتصالات باز SQLite
+            SqliteConnection.ClearAllPools();
+            await Task.Delay(300);
+
+            // حذف فایل دیتابیس و WAL
+            if (File.Exists(dbPath)) File.Delete(dbPath);
+            if (File.Exists(dbPath + "-wal")) File.Delete(dbPath + "-wal");
+            if (File.Exists(dbPath + "-shm")) File.Delete(dbPath + "-shm");
+
+            // ایجاد دیتابیس تازه با داده‌های پیش‌فرض
+            await using var db = await DbFactory.CreateDbContextAsync();
+            await db.Database.EnsureCreatedAsync();
+
+            showWipeConfirm = false;
+            wipeConfirmText = "";
+            message = "بازنشانی کامل انجام شد. دیتابیس به حالت اولیه بازگشت.";
+            RefreshFileInfo();
+
+            // بازگشت به صفحه اصلی پس از ۲ ثانیه
+            await Task.Delay(2000);
+            Nav.NavigateTo("/", forceLoad: false);
+        }
+        catch (Exception ex)
+        {
+            message = $"خطا در بازنشانی: {ex.Message}";
+            isError = true;
+        }
+        finally
+        {
+            isWiping = false;
+        }
+    }
+
+    public void Dispose() => _db?.Dispose();
+}

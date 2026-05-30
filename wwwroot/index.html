@@ -5,7 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
     <title>SmartERP - Industrial</title>
     <base href="/" />
-    
+    <!-- جلوگیری از درخواست favicon و پر کردن console با خطا -->
+    <link rel="icon" href="data:,">
+
     <!-- فونت‌ها به صورت محلی (بدون CDN) تعریف می‌شوند؛ فول‌بک سیستمی فعال است -->
     
     <link rel="stylesheet" href="css/app.css" />
@@ -128,7 +130,11 @@
         <a class="dismiss">🗙</a>
     </div>
 
-    <!-- اسکریپت اصلی فریم‌ورک (ویژگی autostart="false" برای حل مشکل دکمه‌ها حذف شد) -->
-    <script src="_framework/blazor.webview.js"></script>
+    <!--
+        autostart="false" الزامی است در MAUI Blazor Hybrid:
+        BlazorWebView کنترل native خودش Blazor را راه‌اندازی می‌کند.
+        بدون این ویژگی، اسکریپت دو بار start می‌شود → "Blazor has already started"
+    -->
+    <script src="_framework/blazor.webview.js" autostart="false"></script>
 </body>
 </html>

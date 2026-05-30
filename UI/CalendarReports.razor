@@ -1,0 +1,469 @@
+@page "/calendar"
+@implements IDisposable
+@inject IDbContextFactory<AppDbContext> DbFactory
+
+<div style="padding:0 0 2rem;">
+
+    <!-- عنوان صفحه -->
+    <div style="display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:2rem;">
+        <div>
+            <h1 style="color:var(--primary-color);font-weight:800;font-size:1.8rem;margin-bottom:0.4rem;">تقویم شمسی و گزارش‌ها</h1>
+            <p style="color:var(--text-muted);margin:0;font-size:0.9rem;">ثبت چک، گزارش مالی، یادآوری‌ها و جلسات بر روی تقویم جلالی</p>
+        </div>
+        <div style="font-size:0.85rem;color:var(--text-muted);">
+            امروز:
+            <span class="industrial-num" style="color:var(--primary-color);font-weight:700;margin-right:0.3rem;">@todayStr</span>
+        </div>
+    </div>
+
+    <div style="display:flex;gap:1.5rem;align-items:flex-start;">
+
+        <!-- ─── پنل تقویم ─────────────────────────────────────────────── -->
+        <div style="flex:1;min-width:0;">
+
+            <!-- ناوبری ماه -->
+            <div class="card" style="padding:1rem 1.5rem;margin-bottom:1rem;display:flex;align-items:center;justify-content:space-between;">
+                <button style="padding:0.5rem 1.1rem;border-radius:var(--radius-md);cursor:pointer;font-family:var(--font-fa);font-size:0.88rem;
+                               background:var(--bg-color);border:1px solid var(--border-color);color:var(--text-main);transition:all 0.15s;"
+                        @onclick="GoNextMonth">◄ ماه بعد</button>
+
+                <div style="text-align:center;">
+                    <h2 style="margin:0;font-size:1.35rem;font-weight:800;color:var(--text-main);">
+                        @JalaliHelper.MonthName(currentMonth)
+                        <span class="industrial-num" style="color:var(--primary-color);margin-right:0.4rem;">@currentYear</span>
+                    </h2>
+                    <div style="font-size:0.75rem;color:var(--text-muted);margin-top:0.2rem;">
+                        @monthEvents.Count رویداد این ماه
+                    </div>
+                </div>
+
+                <button style="padding:0.5rem 1.1rem;border-radius:var(--radius-md);cursor:pointer;font-family:var(--font-fa);font-size:0.88rem;
+                               background:var(--bg-color);border:1px solid var(--border-color);color:var(--text-main);transition:all 0.15s;"
+                        @onclick="GoPrevMonth">ماه قبل ►</button>
+            </div>
+
+            <!-- گرید تقویم -->
+            <div class="card" style="padding:1.25rem;">
+
+                <!-- سرستون‌های روزهای هفته -->
+                <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-bottom:6px;">
+                    @foreach (var h in JalaliHelper.WeekDayHeaders)
+                    {
+                        <div style="text-align:center;font-size:0.8rem;font-weight:700;padding:0.4rem 0;
+                                    color:@(h == "جم" ? "var(--danger)" : "var(--text-muted)");">@h</div>
+                    }
+                </div>
+
+                <!-- سلول‌های روز -->
+                <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;">
+
+                    <!-- سلول‌های خالی برای تراز اولین روز -->
+                    @for (int i = 0; i < offset; i++)
+                    {
+                        <div style="min-height:82px;"></div>
+                    }
+
+                    @for (int d = 1; d <= daysInMonth; d++)
+                    {
+                        var day     = d;
+                        var dateStr = $"{currentYear}/{currentMonth:D2}/{day:D2}";
+                        var greg    = JalaliHelper.ToGregorian(currentYear, currentMonth, day);
+                        var isFri   = greg.DayOfWeek == DayOfWeek.Friday;
+                        var isHol   = JalaliHelper.IsOfficialHoliday(currentMonth, day);
+                        var isRed   = isFri || isHol;
+                        var isToday = dateStr == todayStr;
+                        var isSel   = dateStr == selectedDate;
+                        var dayEvs  = monthEvents.Where(e => e.JalaliDate == dateStr).ToList();
+
+                        <div style="min-height:82px;border-radius:var(--radius-md);padding:0.45rem 0.5rem;
+                                    cursor:pointer;position:relative;transition:border-color 0.15s,background 0.15s;
+                                    background:@(isSel  ? "rgba(56,189,248,0.12)"
+                                               : isToday? "rgba(56,189,248,0.05)"
+                                               : "var(--bg-color)");
+                                    border:1px solid @(isSel  ? "var(--primary-color)"
+                                                      : isToday? "rgba(56,189,248,0.4)"
+                                                      : "var(--border-color)");"
+                             @onclick="() => SelectDay(dateStr, dayEvs)">
+
+                            <!-- شماره روز -->
+                            <div style="font-size:0.92rem;font-weight:@(isToday ? "800" : "500");
+                                        color:@(isToday ? "var(--primary-color)"
+                                               : isRed  ? "var(--danger)"
+                                               : "var(--text-main)");"
+                                 class="industrial-num">
+                                @day
+                            </div>
+
+                            <!-- برچسب تعطیل -->
+                            @if (isRed)
+                            {
+                                <div style="font-size:0.6rem;color:var(--danger);opacity:0.8;margin-top:1px;">تعطیل</div>
+                            }
+
+                            <!-- نشانگرهای رویداد -->
+                            @if (dayEvs.Any())
+                            {
+                                <div style="position:absolute;bottom:0.35rem;right:0.4rem;display:flex;gap:2px;flex-wrap:wrap;max-width:calc(100% - 0.8rem);">
+                                    @foreach (var ev in dayEvs.Take(4))
+                                    {
+                                        <span style="width:7px;height:7px;border-radius:50%;display:inline-block;
+                                                     background:@GetEventColor(ev.EventType);
+                                                     box-shadow:0 0 4px @(GetEventColor(ev.EventType))60;"></span>
+                                    }
+                                    @if (dayEvs.Count > 4)
+                                    {
+                                        <span style="font-size:0.55rem;color:var(--text-muted);">+@(dayEvs.Count - 4)</span>
+                                    }
+                                </div>
+                            }
+                        </div>
+                    }
+                </div>
+            </div>
+
+            <!-- راهنمای رنگ‌ها -->
+            <div class="card" style="padding:0.85rem 1.5rem;margin-top:1rem;">
+                <div style="display:flex;gap:1.5rem;flex-wrap:wrap;align-items:center;">
+                    <span style="font-size:0.75rem;color:var(--text-muted);font-weight:700;">نوع رویداد:</span>
+                    @foreach (var kv in _eventTypeColors)
+                    {
+                        <div style="display:flex;align-items:center;gap:0.35rem;font-size:0.78rem;color:var(--text-muted);">
+                            <span style="width:9px;height:9px;border-radius:50%;display:inline-block;background:@kv.Value;"></span>
+                            @kv.Key
+                        </div>
+                    }
+                    <div style="display:flex;align-items:center;gap:0.35rem;font-size:0.78rem;color:var(--danger);">
+                        <span style="width:9px;height:9px;border-radius:50%;display:inline-block;background:var(--danger);"></span>
+                        جمعه / تعطیل رسمی
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ─── پنل جزئیات روز انتخابی ──────────────────────────────── -->
+        @if (selectedDate != null)
+        {
+            <div class="card" style="width:370px;flex-shrink:0;padding:1.5rem;
+                                     border-top:3px solid var(--primary-color);
+                                     max-height:calc(100vh - 180px);overflow-y:auto;">
+
+                <!-- عنوان روز -->
+                <div style="display:flex;justify-content:space-between;align-items:flex-start;
+                             margin-bottom:1.25rem;border-bottom:1px solid var(--border-color);padding-bottom:1rem;">
+                    <div>
+                        <div style="font-size:0.72rem;color:var(--text-muted);margin-bottom:0.2rem;">روز انتخابی</div>
+                        <div class="industrial-num" style="font-size:1.15rem;font-weight:800;color:var(--primary-color);">@selectedDate</div>
+                        @{
+                            var parts  = selectedDate!.Split('/');
+                            var selGreg = JalaliHelper.ToGregorian(
+                                int.Parse(parts[0]), int.Parse(parts[1]), int.Parse(parts[2]));
+                        }
+                        <div style="font-size:0.78rem;color:var(--text-muted);margin-top:0.15rem;">
+                            @JalaliHelper.DayOfWeekName(selGreg.DayOfWeek)
+                        </div>
+                    </div>
+                    <button style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:1.3rem;padding:0.2rem 0.4rem;"
+                            @onclick="ClosePanel">✕</button>
+                </div>
+
+                <!-- لیست رویدادها -->
+                @if (!selectedDayEvents.Any())
+                {
+                    <div style="text-align:center;padding:1.5rem 0;color:var(--text-muted);font-size:0.85rem;">
+                        <div style="font-size:1.8rem;margin-bottom:0.5rem;opacity:0.4;">📅</div>
+                        هیچ رویدادی برای این روز ثبت نشده است.
+                    </div>
+                }
+                else
+                {
+                    <div style="display:flex;flex-direction:column;gap:0.6rem;margin-bottom:1.25rem;">
+                        @foreach (var ev in selectedDayEvents)
+                        {
+                            <div style="padding:0.75rem;background:var(--bg-color);border-radius:var(--radius-md);
+                                        border:1px solid var(--border-color);
+                                        border-right:3px solid @GetEventColor(ev.EventType);">
+                                <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:0.3rem;">
+                                    <span style="font-weight:700;color:var(--text-main);font-size:0.88rem;">@ev.Title</span>
+                                    <div style="display:flex;align-items:center;gap:0.4rem;flex-shrink:0;margin-right:0.5rem;">
+                                        <span style="font-size:0.68rem;padding:0.15rem 0.45rem;border-radius:20px;white-space:nowrap;
+                                                     background:@(GetEventColor(ev.EventType) + "22");
+                                                     color:@GetEventColor(ev.EventType);">@ev.EventType</span>
+                                        <button style="background:none;border:none;color:var(--danger);cursor:pointer;font-size:0.85rem;padding:0;"
+                                                title="حذف رویداد" @onclick="() => DeleteEvent(ev.Id)">✕</button>
+                                    </div>
+                                </div>
+
+                                @if (!string.IsNullOrEmpty(ev.Description))
+                                {
+                                    <div style="font-size:0.78rem;color:var(--text-muted);margin-bottom:0.3rem;line-height:1.5;">@ev.Description</div>
+                                }
+
+                                @if (ev.CheckAmount.HasValue)
+                                {
+                                    <div class="industrial-num" style="font-size:0.8rem;color:#f59e0b;margin-bottom:0.2rem;">
+                                        مبلغ: @ev.CheckAmount.Value.ToString("N0") ریال
+                                        @if (!string.IsNullOrEmpty(ev.CheckNumber))
+                                        {
+                                            <span style="margin-right:0.5rem;"> — شماره: @ev.CheckNumber</span>
+                                        }
+                                    </div>
+                                }
+
+                                <div style="font-size:0.72rem;color:var(--text-muted);margin-top:0.3rem;">
+                                    @ev.AuthorRole
+                                    @if (!string.IsNullOrEmpty(ev.AuthorName))
+                                    {
+                                        <span style="margin-right:0.3rem;">— @ev.AuthorName</span>
+                                    }
+                                </div>
+                            </div>
+                        }
+                    </div>
+                }
+
+                <!-- دکمه افزودن / فرم ثبت رویداد -->
+                @if (!showAddForm)
+                {
+                    <button class="btn-primary" style="width:100%;" @onclick="() => showAddForm = true">
+                        + افزودن رویداد جدید
+                    </button>
+                }
+                else
+                {
+                    <div style="border-top:1px solid var(--border-color);padding-top:1.25rem;">
+                        <h4 style="font-size:0.95rem;font-weight:700;color:var(--text-main);margin-bottom:1rem;">
+                            ثبت رویداد — <span class="industrial-num" style="color:var(--primary-color);">@selectedDate</span>
+                        </h4>
+
+                        @if (!string.IsNullOrEmpty(formError))
+                        {
+                            <div style="padding:0.6rem 0.8rem;background:rgba(239,68,68,0.1);border:1px solid var(--danger);
+                                        border-radius:var(--radius-md);color:var(--danger);font-size:0.8rem;margin-bottom:0.75rem;">
+                                @formError
+                            </div>
+                        }
+
+                        <!-- عنوان -->
+                        <div style="margin-bottom:0.7rem;">
+                            <label style="display:block;font-size:0.78rem;color:var(--text-muted);margin-bottom:0.3rem;">عنوان *</label>
+                            <input type="text" @bind="newTitle" class="input-field" style="margin-bottom:0;" placeholder="عنوان رویداد..." />
+                        </div>
+
+                        <!-- نوع رویداد + نقش -->
+                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.6rem;margin-bottom:0.7rem;">
+                            <div>
+                                <label style="display:block;font-size:0.78rem;color:var(--text-muted);margin-bottom:0.3rem;">نوع رویداد</label>
+                                <select @bind="newType" class="input-field" style="margin-bottom:0;">
+                                    <option>یادآوری</option>
+                                    <option>چک</option>
+                                    <option>گزارش_مالی</option>
+                                    <option>جلسه</option>
+                                    <option>ضرب_الاجل</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label style="display:block;font-size:0.78rem;color:var(--text-muted);margin-bottom:0.3rem;">نقش ثبت‌کننده</label>
+                                <select @bind="newRole" class="input-field" style="margin-bottom:0;">
+                                    <option>عمومی</option>
+                                    <option>حسابدار</option>
+                                    <option>مدیر</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- فیلدهای ویژه چک -->
+                        @if (newType == "چک")
+                        {
+                            <div style="padding:0.85rem;background:rgba(245,158,11,0.05);
+                                        border:1px solid rgba(245,158,11,0.25);border-radius:var(--radius-md);
+                                        margin-bottom:0.7rem;">
+                                <div style="font-size:0.75rem;color:#f59e0b;font-weight:700;margin-bottom:0.6rem;">اطلاعات چک</div>
+                                <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.6rem;">
+                                    <div>
+                                        <label style="display:block;font-size:0.75rem;color:#f59e0b;margin-bottom:0.25rem;">مبلغ (ریال)</label>
+                                        <input type="number" @bind="newCheckAmount" class="input-field"
+                                               style="margin-bottom:0;direction:ltr;font-family:var(--font-en);" placeholder="0" />
+                                    </div>
+                                    <div>
+                                        <label style="display:block;font-size:0.75rem;color:#f59e0b;margin-bottom:0.25rem;">شماره چک</label>
+                                        <input type="text" @bind="newCheckNumber" class="input-field"
+                                               style="margin-bottom:0;direction:ltr;font-family:var(--font-en);" placeholder="XXXXXXX" />
+                                    </div>
+                                </div>
+                            </div>
+                        }
+
+                        <!-- نام ثبت‌کننده -->
+                        <div style="margin-bottom:0.7rem;">
+                            <label style="display:block;font-size:0.78rem;color:var(--text-muted);margin-bottom:0.3rem;">نام ثبت‌کننده</label>
+                            <input type="text" @bind="newAuthor" class="input-field" style="margin-bottom:0;" />
+                        </div>
+
+                        <!-- توضیحات -->
+                        <div style="margin-bottom:1rem;">
+                            <label style="display:block;font-size:0.78rem;color:var(--text-muted);margin-bottom:0.3rem;">توضیحات</label>
+                            <textarea @bind="newDesc" class="input-field"
+                                      style="min-height:65px;resize:vertical;margin-bottom:0;"
+                                      placeholder="توضیحات اضافی..."></textarea>
+                        </div>
+
+                        <!-- دکمه‌های عمل -->
+                        <div style="display:flex;gap:0.6rem;">
+                            <button class="btn-primary" style="flex:1;" @onclick="SaveEvent" disabled="@isSaving">
+                                @if (isSaving) { <span>در حال ذخیره...</span> } else { <span>ذخیره رویداد</span> }
+                            </button>
+                            <button style="padding:0.6rem 1rem;border-radius:var(--radius-md);cursor:pointer;
+                                           font-family:var(--font-fa);background:none;
+                                           border:1px solid var(--border-color);color:var(--text-muted);"
+                                    @onclick="() => { showAddForm = false; ClearForm(); }">انصراف</button>
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    private AppDbContext _db = null!;
+    private List<CalendarEvent> monthEvents = new();
+
+    private int currentYear, currentMonth;
+    private int offset, daysInMonth;
+    private string todayStr = "";
+
+    private string? selectedDate = null;
+    private List<CalendarEvent> selectedDayEvents = new();
+
+    private bool showAddForm = false;
+    private bool isSaving = false;
+    private string formError = "";
+
+    // ── فیلدهای فرم ثبت رویداد ──────────────────────────────────────────
+    private string  newTitle       = "";
+    private string  newType        = "یادآوری";
+    private string  newDesc        = "";
+    private string  newRole        = "عمومی";
+    private string  newAuthor      = "مدیر سیستم";
+    private decimal? newCheckAmount = null;
+    private string  newCheckNumber  = "";
+
+    // ── نقشه رنگ نوع رویداد ─────────────────────────────────────────────
+    private static readonly Dictionary<string, string> _eventTypeColors = new()
+    {
+        { "یادآوری",    "#10b981" },
+        { "چک",         "#f59e0b" },
+        { "گزارش_مالی", "#3b82f6" },
+        { "جلسه",       "#8b5cf6" },
+        { "ضرب_الاجل",  "#ef4444" }
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        _db = await DbFactory.CreateDbContextAsync();
+        var (y, m, d) = JalaliHelper.Today();
+        currentYear  = y;
+        currentMonth = m;
+        todayStr     = $"{y}/{m:D2}/{d:D2}";
+        await LoadMonth();
+    }
+
+    private async Task LoadMonth()
+    {
+        offset      = JalaliHelper.FirstDayOffset(currentYear, currentMonth);
+        daysInMonth = JalaliHelper.DaysInJalaliMonth(currentYear, currentMonth);
+        var prefix  = $"{currentYear}/{currentMonth:D2}/";
+        try
+        {
+            monthEvents = await _db.CalendarEvents
+                .AsNoTracking()
+                .Where(e => e.JalaliDate.StartsWith(prefix))
+                .OrderBy(e => e.JalaliDate)
+                .ToListAsync();
+        }
+        catch { monthEvents = new(); }
+    }
+
+    private void SelectDay(string dateStr, List<CalendarEvent> evs)
+    {
+        selectedDate    = dateStr;
+        selectedDayEvents = evs.ToList();
+        showAddForm     = false;
+        ClearForm();
+    }
+
+    private void ClosePanel()
+    {
+        selectedDate = null;
+        showAddForm  = false;
+        ClearForm();
+    }
+
+    private async Task GoPrevMonth()
+    {
+        (currentYear, currentMonth) = JalaliHelper.PrevMonth(currentYear, currentMonth);
+        selectedDate = null;
+        await LoadMonth();
+    }
+
+    private async Task GoNextMonth()
+    {
+        (currentYear, currentMonth) = JalaliHelper.NextMonth(currentYear, currentMonth);
+        selectedDate = null;
+        await LoadMonth();
+    }
+
+    private async Task SaveEvent()
+    {
+        if (string.IsNullOrWhiteSpace(newTitle)) { formError = "عنوان الزامی است."; return; }
+        isSaving = true; formError = "";
+        try
+        {
+            await using var db = await DbFactory.CreateDbContextAsync();
+            db.CalendarEvents.Add(new CalendarEvent
+            {
+                JalaliDate  = selectedDate!,
+                Title       = newTitle.Trim(),
+                EventType   = newType,
+                Description = newDesc.Trim(),
+                AuthorRole  = newRole,
+                AuthorName  = newAuthor.Trim(),
+                CreatedAt   = DateTime.Now,
+                CheckAmount = newType == "چک" ? newCheckAmount : null,
+                CheckNumber = newType == "چک" ? newCheckNumber.Trim() : ""
+            });
+            await db.SaveChangesAsync();
+
+            await LoadMonth();
+            selectedDayEvents = monthEvents.Where(e => e.JalaliDate == selectedDate).ToList();
+            showAddForm = false;
+            ClearForm();
+        }
+        catch (Exception ex) { formError = $"خطا در ذخیره: {ex.Message}"; }
+        finally { isSaving = false; }
+    }
+
+    private async Task DeleteEvent(int id)
+    {
+        try
+        {
+            await using var db = await DbFactory.CreateDbContextAsync();
+            var ev = await db.CalendarEvents.FindAsync(id);
+            if (ev != null) { db.CalendarEvents.Remove(ev); await db.SaveChangesAsync(); }
+            await LoadMonth();
+            selectedDayEvents = monthEvents.Where(e => e.JalaliDate == selectedDate).ToList();
+        }
+        catch { }
+    }
+
+    private void ClearForm()
+    {
+        newTitle = ""; newType = "یادآوری"; newDesc = ""; newRole = "عمومی";
+        newAuthor = "مدیر سیستم"; newCheckAmount = null; newCheckNumber = ""; formError = "";
+    }
+
+    private static string GetEventColor(string type)
+        => _eventTypeColors.TryGetValue(type, out var c) ? c : "#94a3b8";
+
+    public void Dispose() => _db?.Dispose();
+}

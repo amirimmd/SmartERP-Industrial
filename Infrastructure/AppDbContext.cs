@@ -15,6 +15,7 @@ namespace SmartERP.Infrastructure
         public DbSet<CustomerActivity> CustomerActivities { get; set; }
         public DbSet<CustomerReminder> CustomerReminders { get; set; }
         public DbSet<AfterSalesTicket> AfterSalesTickets { get; set; }
+        public DbSet<CalendarEvent> CalendarEvents { get; set; }
 
         public AppDbContext(DbContextOptions<AppDbContext> options) : base(options) { }
 
@@ -32,6 +33,7 @@ namespace SmartERP.Infrastructure
             modelBuilder.Entity<CustomerActivity>().HasKey(a => a.Id);
             modelBuilder.Entity<CustomerReminder>().HasKey(r => r.Id);
             modelBuilder.Entity<AfterSalesTicket>().HasKey(t => t.Id);
+            modelBuilder.Entity<CalendarEvent>().HasKey(e => e.Id);
 
             modelBuilder.Entity<CompanySetting>().HasData(
                 new CompanySetting
