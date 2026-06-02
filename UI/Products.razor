@@ -1,4 +1,7 @@
 @page "/products"
+@using SmartERP.Core
+@using SmartERP.Infrastructure
+@using Microsoft.EntityFrameworkCore
 @implements IDisposable
 @inject IDbContextFactory<AppDbContext> DbFactory
 
@@ -18,15 +21,70 @@
 
     <!-- تب‌های دسته‌بندی -->
     <div style="display:flex;gap:0;margin-bottom:1.5rem;border-bottom:1px solid var(--border-color);">
-        @foreach (var tab in new[] { "همه", "محصول نهایی", "مواد اولیه", "چهارچوب فلزی" })
+        @foreach (var tab in new[] { "همه", "محصول نهایی", "مواد اولیه", "چهارچوب فلزی", "قیمت چهارچوب‌ها" })
         {
-            <button @onclick="() => { activeTab = tab; ApplyFilter(); }"
+            <button @onclick="() => { activeTab = tab; if(tab!=\"قیمت چهارچوب‌ها\") ApplyFilter(); else _ = LoadFramePrices(); }"
                     style="padding:0.7rem 1.5rem;border:none;border-bottom:2px solid @(activeTab==tab ? "var(--primary-color)" : "transparent");background:transparent;color:@(activeTab==tab ? "var(--primary-color)" : "var(--text-muted)");cursor:pointer;font-family:var(--font-fa);font-weight:@(activeTab==tab ? "bold" : "normal");font-size:0.9rem;">
                 @tab
-                <span class="industrial-num" style="font-size:0.75rem;margin-right:0.35rem;opacity:0.7;">(@(tab == "همه" ? allProducts.Count : tab == "چهارچوب فلزی" ? allProducts.Count(p => p.IsFrameProduct) : allProducts.Count(p => p.Category == tab)))</span>
+                @if (tab != "قیمت چهارچوب‌ها")
+                {
+                    <span class="industrial-num" style="font-size:0.75rem;margin-right:0.35rem;opacity:0.7;">(@(tab == "همه" ? allProducts.Count : tab == "چهارچوب فلزی" ? allProducts.Count(p => p.IsFrameProduct) : allProducts.Count(p => p.Category == tab)))</span>
+                }
             </button>
         }
     </div>
+
+    <!-- ═══ تب قیمت چهارچوب‌ها ═══ -->
+    @if (activeTab == "قیمت چهارچوب‌ها")
+    {
+        <div class="card" style="max-width:640px;">
+            <h3 style="color:var(--primary-color);font-weight:800;margin-bottom:1.25rem;font-size:1rem;">جدول قیمت پایه چهارچوب‌ها</h3>
+            @if (framePrices.Count == 0)
+            {
+                <div style="text-align:center;color:var(--text-muted);padding:2rem;">در حال بارگذاری...</div>
+            }
+            else
+            {
+                <table style="width:100%;border-collapse:collapse;margin-bottom:1.25rem;">
+                    <thead>
+                        <tr style="border-bottom:1px solid var(--border-color);">
+                            <th style="padding:0.65rem 1rem;text-align:right;font-size:0.83rem;color:var(--text-muted);">نوع چهارچوب</th>
+                            <th style="padding:0.65rem 1rem;text-align:right;font-size:0.83rem;color:var(--text-muted);">جهت باز شدن</th>
+                            <th style="padding:0.65rem 1rem;text-align:right;font-size:0.83rem;color:var(--text-muted);">قیمت پایه (تومان)</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var fp in framePrices)
+                        {
+                            <tr style="border-bottom:1px solid var(--border-color);">
+                                <td style="padding:0.75rem 1rem;font-size:0.85rem;">@fp.FrameType</td>
+                                <td style="padding:0.75rem 1rem;font-size:0.85rem;">@fp.OpeningDirection</td>
+                                <td style="padding:0.75rem 1rem;">
+                                    <div style="display:flex;align-items:center;gap:0.5rem;">
+                                        <input type="text" class="input-field industrial-num"
+                                               style="margin-bottom:0;max-width:160px;direction:ltr;text-align:left;"
+                                               value="@fp.BasePrice.ToString("N0")"
+                                               @onchange="(e) => UpdateFramePrice(fp, e)" />
+                                        <div style="display:flex;flex-direction:column;gap:2px;">
+                                            <button style="background:var(--surface-color);border:1px solid var(--border-color);color:var(--primary-color);cursor:pointer;padding:0.1rem 0.5rem;font-size:0.7rem;border-radius:2px;" @onclick="() => AdjustFramePrice(fp, 10000)">▲</button>
+                                            <button style="background:var(--surface-color);border:1px solid var(--border-color);color:var(--text-muted);cursor:pointer;padding:0.1rem 0.5rem;font-size:0.7rem;border-radius:2px;" @onclick="() => AdjustFramePrice(fp, -10000)">▼</button>
+                                        </div>
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+                <button class="btn-primary" @onclick="SaveFramePrices" disabled="@isSavingPrices">
+                    @(isSavingPrices ? "در حال ذخیره..." : "ذخیره قیمت‌ها")
+                </button>
+                @if (!string.IsNullOrEmpty(framePriceSaveMsg))
+                {
+                    <span style="margin-right:1rem;font-size:0.83rem;color:var(--success);">@framePriceSaveMsg</span>
+                }
+            }
+        </div>
+    }
 
     <!-- جستجو و فیلتر -->
     <div class="card" style="margin-bottom:1.5rem;padding:1rem 1.5rem;">
@@ -291,11 +349,73 @@
     private string filterStock { get => _filterStock; set { _filterStock = value; ApplyFilter(); } }
 
     private Product pForm = new();
+    private List<FramePriceSetting> framePrices = new();
+    private bool isSavingPrices = false;
+    private string framePriceSaveMsg = "";
 
     protected override async Task OnInitializedAsync()
     {
         _db = await DbFactory.CreateDbContextAsync();
         await LoadData();
+    }
+
+    private async Task LoadFramePrices()
+    {
+        try
+        {
+            framePrices = await _db.FramePriceSettings.AsNoTracking().OrderBy(f => f.FrameType).ThenBy(f => f.OpeningDirection).ToListAsync();
+            if (!framePrices.Any())
+            {
+                framePrices = new List<FramePriceSetting>
+                {
+                    new() { Id = 1, FrameType = "چهارچوب فرانسوی", OpeningDirection = "راست‌باز", BasePrice = 1200000 },
+                    new() { Id = 2, FrameType = "چهارچوب فرانسوی", OpeningDirection = "چپ‌باز",  BasePrice = 1200000 },
+                    new() { Id = 3, FrameType = "چهارچوب مکزیکی",  OpeningDirection = "راست‌باز", BasePrice = 1500000 },
+                    new() { Id = 4, FrameType = "چهارچوب مکزیکی",  OpeningDirection = "چپ‌باز",  BasePrice = 1500000 },
+                };
+            }
+        }
+        catch { }
+        StateHasChanged();
+    }
+
+    private void UpdateFramePrice(FramePriceSetting fp, ChangeEventArgs e)
+    {
+        var raw = (e.Value?.ToString() ?? "").Replace(",", "").Trim();
+        if (decimal.TryParse(raw, out var v)) fp.BasePrice = Math.Max(0, v);
+    }
+
+    private void AdjustFramePrice(FramePriceSetting fp, decimal delta)
+    {
+        fp.BasePrice = Math.Max(0, fp.BasePrice + delta);
+        StateHasChanged();
+    }
+
+    private async Task SaveFramePrices()
+    {
+        isSavingPrices = true; framePriceSaveMsg = "";
+        try
+        {
+            await using var db = await DbFactory.CreateDbContextAsync();
+            foreach (var fp in framePrices)
+            {
+                fp.UpdatedAt = DateTime.Now;
+                var existing = await db.FramePriceSettings.FindAsync(fp.Id);
+                if (existing != null)
+                {
+                    existing.BasePrice = fp.BasePrice;
+                    existing.UpdatedAt = fp.UpdatedAt;
+                }
+                else
+                {
+                    db.FramePriceSettings.Add(fp);
+                }
+            }
+            await db.SaveChangesAsync();
+            framePriceSaveMsg = "✓ ذخیره شد";
+        }
+        catch (Exception ex) { framePriceSaveMsg = $"خطا: {ex.Message}"; }
+        finally { isSavingPrices = false; StateHasChanged(); }
     }
 
     private async Task LoadData()

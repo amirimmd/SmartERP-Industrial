@@ -16,6 +16,7 @@ namespace SmartERP.Infrastructure
         public DbSet<CustomerReminder> CustomerReminders { get; set; }
         public DbSet<AfterSalesTicket> AfterSalesTickets { get; set; }
         public DbSet<CalendarEvent> CalendarEvents { get; set; }
+        public DbSet<FramePriceSetting> FramePriceSettings { get; set; }
 
         public AppDbContext(DbContextOptions<AppDbContext> options) : base(options) { }
 
@@ -34,6 +35,14 @@ namespace SmartERP.Infrastructure
             modelBuilder.Entity<CustomerReminder>().HasKey(r => r.Id);
             modelBuilder.Entity<AfterSalesTicket>().HasKey(t => t.Id);
             modelBuilder.Entity<CalendarEvent>().HasKey(e => e.Id);
+            modelBuilder.Entity<FramePriceSetting>().HasKey(f => f.Id);
+
+            modelBuilder.Entity<FramePriceSetting>().HasData(
+                new FramePriceSetting { Id = 1, FrameType = "چهارچوب فرانسوی", OpeningDirection = "راست‌باز", BasePrice = 1200000 },
+                new FramePriceSetting { Id = 2, FrameType = "چهارچوب فرانسوی", OpeningDirection = "چپ‌باز",  BasePrice = 1200000 },
+                new FramePriceSetting { Id = 3, FrameType = "چهارچوب مکزیکی",  OpeningDirection = "راست‌باز", BasePrice = 1500000 },
+                new FramePriceSetting { Id = 4, FrameType = "چهارچوب مکزیکی",  OpeningDirection = "چپ‌باز",  BasePrice = 1500000 }
+            );
 
             modelBuilder.Entity<CompanySetting>().HasData(
                 new CompanySetting

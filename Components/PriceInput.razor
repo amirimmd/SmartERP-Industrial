@@ -1,0 +1,53 @@
+@* ورودی قیمت با پشتیبانی از جهت بالا/پایین به مقدار Step و نمایش با جداکننده هزارگان *@
+
+<div class="price-input-wrapper" style="display:flex;align-items:stretch;gap:0;">
+    <input type="text"
+           class="input-field price-input-field"
+           style="margin-bottom:0;border-radius:var(--radius-md) 0 0 var(--radius-md);flex:1;text-align:left;font-family:var(--font-en);direction:ltr;"
+           value="@FormattedValue"
+           @onchange="OnTextChanged"
+           @onkeydown="HandleKeyDown"
+           placeholder="0" />
+    <div style="display:flex;flex-direction:column;border:1px solid var(--border-color);border-right:none;border-radius:0 var(--radius-md) var(--radius-md) 0;overflow:hidden;">
+        <button type="button"
+                style="flex:1;background:var(--surface-color);border:none;color:var(--primary-color);cursor:pointer;padding:0 0.5rem;font-size:0.8rem;border-bottom:1px solid var(--border-color);"
+                @onclick="Increment">▲</button>
+        <button type="button"
+                style="flex:1;background:var(--surface-color);border:none;color:var(--text-muted);cursor:pointer;padding:0 0.5rem;font-size:0.8rem;"
+                @onclick="Decrement">▼</button>
+    </div>
+</div>
+
+@code {
+    [Parameter] public decimal Value { get; set; }
+    [Parameter] public EventCallback<decimal> ValueChanged { get; set; }
+    [Parameter] public decimal Step { get; set; } = 10000;
+    [Parameter] public decimal Min { get; set; } = 0;
+
+    string FormattedValue => Value == 0 ? "" : Value.ToString("N0");
+
+    async Task Increment()
+    {
+        var newVal = Value + Step;
+        await ValueChanged.InvokeAsync(newVal);
+    }
+
+    async Task Decrement()
+    {
+        var newVal = Math.Max(Min, Value - Step);
+        await ValueChanged.InvokeAsync(newVal);
+    }
+
+    async Task OnTextChanged(ChangeEventArgs e)
+    {
+        var raw = (e.Value?.ToString() ?? "").Replace(",", "").Trim();
+        if (decimal.TryParse(raw, out var parsed))
+            await ValueChanged.InvokeAsync(Math.Max(Min, parsed));
+    }
+
+    async Task HandleKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "ArrowUp")   await Increment();
+        if (e.Key == "ArrowDown") await Decrement();
+    }
+}

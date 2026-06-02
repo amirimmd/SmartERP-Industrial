@@ -173,13 +173,17 @@
                                 {
                                     <span class="badge badge-ready">✓ آماده تحویل</span>
                                 }
-                                <!-- چک‌لیست سریع -->
+                                <!-- چک‌لیست مرحله‌ای با تاریخ -->
                                 <div style="margin-top:0.4rem;">
-                                    @foreach (var (label, done) in GetChecklist(o))
+                                    @foreach (var (label, done, date) in GetChecklistWithDates(o))
                                     {
                                         <div style="font-size:0.72rem;display:flex;align-items:center;gap:0.3rem;color:@(done ? "var(--success)" : "var(--border-color)");">
-                                            <span>@(done ? "✓" : "◻")</span>
+                                            <span>@(done ? "✅" : "◻")</span>
                                             <span>@label</span>
+                                            @if (done && date.HasValue)
+                                            {
+                                                <span class="industrial-num" style="font-size:0.65rem;color:var(--text-muted);">@JalaliHelper.ToJalaliString(date.Value)</span>
+                                            }
                                         </div>
                                     }
                                 </div>
@@ -357,41 +361,51 @@
 <!-- ═══════════ Modal گزارش دسته‌جمعی ═══════════ -->
 @if (isBatchReportOpen)
 {
-    <div style="position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(9,9,11,0.95);z-index:300;display:flex;align-items:center;justify-content:center;padding:1rem;">
-        <div class="card" style="width:100%;max-width:600px;border-top:3px solid var(--accent-color);">
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.5rem;border-bottom:1px solid var(--border-color);padding-bottom:1rem;">
-                <h2 style="font-size:1.15rem;color:var(--text-main);font-weight:800;">گزارش دسته‌جمعی تولید</h2>
+    <div style="position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(9,9,11,0.95);z-index:300;display:flex;align-items:center;justify-content:center;padding:1rem;" @onclick="() => isBatchReportOpen = false">
+        <div class="card" style="width:100%;max-width:680px;max-height:92vh;overflow-y:auto;border-top:3px solid var(--accent-color);" @onclick:stopPropagation="true">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.25rem;border-bottom:1px solid var(--border-color);padding-bottom:1rem;">
+                <h2 style="font-size:1.15rem;color:var(--text-main);font-weight:800;">🖨 گزینه‌های چاپ دسته‌ای</h2>
                 <button style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:1.5rem;" @onclick="() => isBatchReportOpen = false">✕</button>
             </div>
 
-            <div style="background:var(--bg-color);border:1px solid var(--border-color);border-radius:var(--radius-md);padding:1rem;margin-bottom:1.25rem;">
-                <p style="font-size:0.8rem;color:var(--text-muted);margin-bottom:0.5rem;font-weight:bold;">@selectedIds.Count سفارش انتخاب‌شده</p>
+            <!-- سفارشات انتخابی -->
+            <div style="background:var(--bg-color);border:1px solid var(--border-color);border-radius:var(--radius-md);padding:0.85rem;margin-bottom:1.25rem;">
+                <p style="font-size:0.8rem;color:var(--text-muted);margin-bottom:0.5rem;font-weight:bold;"><span class="industrial-num" style="color:var(--accent-color);">@selectedIds.Count</span> سفارش انتخاب‌شده</p>
                 @foreach (var o in orders.Where(x => selectedIds.Contains(x.Id)).Take(5))
                 {
                     <div style="font-size:0.82rem;color:var(--text-main);padding:0.2rem 0;border-bottom:1px dashed var(--border-color);">
-                        <span class="industrial-num" style="color:var(--primary-color);">@o.OrderNumber</span>
-                        — @o.CustomerName
+                        <span class="industrial-num" style="color:var(--primary-color);">@o.OrderNumber</span> — @o.CustomerName
                         <span class="badge @(o.GetWorkflowStage()==3 ? "badge-ready" : o.GetWorkflowStage()==2 ? "badge-inprod" : "badge-registered")" style="margin-right:0.5rem;font-size:0.7rem;">@o.Status</span>
                     </div>
                 }
                 @if (selectedIds.Count > 5) { <div style="font-size:0.78rem;color:var(--text-muted);padding-top:0.3rem;">و @(selectedIds.Count - 5) سفارش دیگر...</div> }
             </div>
 
+            <!-- محتوای قابل چاپ -->
             <div style="margin-bottom:1.25rem;">
-                <label style="display:block;margin-bottom:0.5rem;color:var(--text-muted);font-size:0.85rem;font-weight:bold;">نوع گزارش</label>
-                <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.6rem;">
-                    @foreach (var (val, label, desc) in new[]{
-                        ("production-line","گزارش خط تولید","برای کارگران کارخانه"),
-                        ("daily","گزارش روزانه","لیست تولید امروز"),
-                        ("weekly","گزارش هفتگی","برنامه‌ریزی هفتگی"),
-                        ("custom","بازه دلخواه","گزارش بازه سفارشی")
-                    })
+                <label style="display:block;margin-bottom:0.5rem;color:var(--text-muted);font-size:0.85rem;font-weight:bold;">اطلاعاتی که چاپ می‌شوند:</label>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.4rem;">
+                    @foreach (var (key, label) in batchPrintFields)
                     {
-                        <div @onclick="() => batchReportType = val"
-                             style="padding:0.75rem 1rem;border-radius:var(--radius-md);cursor:pointer;border:1px solid @(batchReportType==val ? "var(--accent-color)" : "var(--border-color)");background:@(batchReportType==val ? "rgba(59,130,246,0.1)" : "var(--bg-color)");">
-                            <div style="font-size:0.85rem;font-weight:bold;color:@(batchReportType==val ? "var(--accent-color)" : "var(--text-main)");">@label</div>
-                            <div style="font-size:0.75rem;color:var(--text-muted);">@desc</div>
-                        </div>
+                        var k = key;
+                        <label style="display:flex;align-items:center;gap:0.5rem;padding:0.5rem 0.75rem;background:var(--bg-color);border:1px solid var(--border-color);border-radius:var(--radius-md);cursor:pointer;font-size:0.83rem;">
+                            <input type="checkbox" checked="@batchFieldsEnabled[k]" @onchange="() => ToggleBatchField(k)" style="cursor:pointer;" />
+                            @label
+                        </label>
+                    }
+                </div>
+            </div>
+
+            <!-- گروه‌بندی -->
+            <div style="margin-bottom:1.25rem;">
+                <label style="display:block;margin-bottom:0.5rem;color:var(--text-muted);font-size:0.85rem;font-weight:bold;">گروه‌بندی در گزارش:</label>
+                <div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
+                    @foreach (var (val, label) in new[]{("none","بدون گروه‌بندی"),("priority","اولویت"),("delivery","تاریخ تحویل"),("status","وضعیت")})
+                    {
+                        <button @onclick="() => batchGroupBy = val"
+                                style="padding:0.4rem 0.9rem;border-radius:var(--radius-md);cursor:pointer;border:1px solid @(batchGroupBy==val ? "var(--accent-color)" : "var(--border-color)");background:@(batchGroupBy==val ? "rgba(59,130,246,0.12)" : "var(--bg-color)");color:@(batchGroupBy==val ? "var(--accent-color)" : "var(--text-muted)");font-family:var(--font-fa);font-size:0.82rem;">
+                            @label
+                        </button>
                     }
                 </div>
             </div>
@@ -421,7 +435,33 @@
     private string pageError = "";
     private string modalError = "";
     private string batchReportType = "production-line";
+    private string batchGroupBy = "none";
     private Order editingOrder = new();
+
+    private readonly (string Key, string Label)[] batchPrintFields = {
+        ("details",   "مشخصات سفارش"),
+        ("items",     "لیست اقلام"),
+        ("frames",    "جزئیات چهارچوب‌ها"),
+        ("notes",     "یادداشت فنی"),
+        ("priority",  "اولویت تولید"),
+        ("delivery",  "تاریخ تحویل"),
+        ("customer",  "مشخصات مشتری"),
+    };
+    private Dictionary<string, bool> batchFieldsEnabled = new()
+    {
+        ["details"]  = true,
+        ["items"]    = true,
+        ["frames"]   = true,
+        ["notes"]    = true,
+        ["priority"] = true,
+        ["delivery"] = true,
+        ["customer"] = false,
+    };
+    private void ToggleBatchField(string key)
+    {
+        if (batchFieldsEnabled.ContainsKey(key))
+            batchFieldsEnabled[key] = !batchFieldsEnabled[key];
+    }
 
     protected override async Task OnInitializedAsync()
     {
@@ -485,18 +525,17 @@
     private void PrintBatchReport()
     {
         var ids = string.Join(",", selectedIds);
-        NavManager.NavigateTo($"/print/batch-orders/{ids}?type={batchReportType}");
+        var fields = string.Join(",", batchFieldsEnabled.Where(kv => kv.Value).Select(kv => kv.Key));
+        NavManager.NavigateTo($"/print/batch-orders/{ids}?fields={Uri.EscapeDataString(fields)}&group={batchGroupBy}");
     }
 
-    // چک‌لیست مراحل بر اساس وضعیت
-    private IEnumerable<(string Label, bool Done)> GetChecklist(Order o)
+    // چک‌لیست مرحله‌ای با تاریخ
+    private IEnumerable<(string Label, bool Done, DateTime? Date)> GetChecklistWithDates(Order o)
     {
         var stage = o.GetWorkflowStage();
-        yield return ("ثبت اولیه سفارش", true);
-        yield return ("تأیید مشخصات فنی", stage >= 2);
-        yield return ("شروع تولید", stage >= 2);
-        yield return ("تکمیل تولید", stage >= 3);
-        yield return ("کنترل کیفیت و تحویل", stage >= 3);
+        yield return ("ثبت سفارش",       true,       o.OrderDate);
+        yield return ("شروع تولید",       stage >= 2, o.ProductionStartedAt ?? o.ProductionStartDate);
+        yield return ("آماده تحویل",      stage >= 3, o.ReadyAt ?? o.CompletedAt);
     }
 
     private async Task QuickStatusChange(Order o, int targetStage)
@@ -508,14 +547,20 @@
             var entity = await db.Orders.FindAsync(o.Id);
             if (entity == null) return;
             entity.Status = newStatus;
-            if (targetStage == 2 && !entity.ProductionStartDate.HasValue)
-                entity.ProductionStartDate = DateTime.Now;
+            if (targetStage == 2)
+            {
+                if (!entity.ProductionStartDate.HasValue)
+                    entity.ProductionStartDate = DateTime.Now;
+                entity.ProductionStartedAt ??= DateTime.Now;
+            }
             if (targetStage == 3)
+            {
                 entity.CompletedAt = DateTime.Now;
-
+                entity.ReadyAt = DateTime.Now;
+            }
             await db.SaveChangesAsync();
 
-            // همگام‌سازی با فاکتور مرجع
+            // خودکار: وقتی سفارش آماده تحویل شد → فاکتور مرجع را به مرحله ۳ ببر
             if (targetStage == 3 && entity.InvoiceId.HasValue)
             {
                 var inv = await db.Invoices.FindAsync(entity.InvoiceId.Value);
@@ -523,6 +568,7 @@
                 {
                     inv.CurrentStep = 3;
                     inv.Status = "آماده ارسال";
+                    inv.Step3Notes = $"به‌صورت خودکار: سفارش تولید {entity.OrderNumber} تکمیل شد — {JalaliHelper.ToJalaliString(DateTime.Now)}";
                     await db.SaveChangesAsync();
                 }
             }
@@ -558,7 +604,7 @@
             Status = o.Status, ItemsJson = o.ItemsJson, TotalAmount = o.TotalAmount,
             TechnicalSpecs = o.TechnicalSpecs, ProductionManagerNotes = o.ProductionManagerNotes,
             ProductionPriority = o.ProductionPriority, ProductionStartDate = o.ProductionStartDate,
-            CompletedAt = o.CompletedAt
+            ProductionStartedAt = o.ProductionStartedAt, ReadyAt = o.ReadyAt, CompletedAt = o.CompletedAt
         };
         modalError = ""; isModalOpen = true;
         await InvokeAsync(StateHasChanged);

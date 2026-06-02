@@ -122,14 +122,27 @@ namespace SmartERP
                 @"CREATE TABLE IF NOT EXISTS ""CalendarEvents"" (
                     ""Id""           INTEGER NOT NULL CONSTRAINT ""PK_CalendarEvents"" PRIMARY KEY AUTOINCREMENT,
                     ""JalaliDate""   TEXT    NOT NULL DEFAULT '',
+                    ""EventDate""    TEXT    NOT NULL DEFAULT CURRENT_TIMESTAMP,
                     ""Title""        TEXT    NOT NULL DEFAULT '',
                     ""EventType""    TEXT    NOT NULL DEFAULT 'یادآوری',
                     ""Description""  TEXT    NOT NULL DEFAULT '',
                     ""AuthorRole""   TEXT    NOT NULL DEFAULT 'عمومی',
                     ""AuthorName""   TEXT    NOT NULL DEFAULT 'مدیر سیستم',
                     ""CreatedAt""    TEXT    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    ""InvoiceId""    INTEGER,
+                    ""InvoiceNumber"" TEXT   NOT NULL DEFAULT '',
+                    ""OrderId""      INTEGER,
+                    ""OrderNumber""  TEXT    NOT NULL DEFAULT '',
                     ""CheckAmount""  REAL,
                     ""CheckNumber""  TEXT    NOT NULL DEFAULT ''
+                )",
+
+                @"CREATE TABLE IF NOT EXISTS ""FramePriceSettings"" (
+                    ""Id""               INTEGER NOT NULL CONSTRAINT ""PK_FramePriceSettings"" PRIMARY KEY AUTOINCREMENT,
+                    ""FrameType""        TEXT    NOT NULL DEFAULT 'چهارچوب فرانسوی',
+                    ""OpeningDirection"" TEXT    NOT NULL DEFAULT 'راست‌باز',
+                    ""BasePrice""        REAL    NOT NULL DEFAULT 0,
+                    ""UpdatedAt""        TEXT    NOT NULL DEFAULT CURRENT_TIMESTAMP
                 )"
             };
 
@@ -220,6 +233,17 @@ namespace SmartERP
                 "ALTER TABLE \"Products\" ADD COLUMN \"FrameType\" TEXT NOT NULL DEFAULT 'چهارچوب فرانسوی'",
                 "ALTER TABLE \"Products\" ADD COLUMN \"OpeningDirection\" TEXT NOT NULL DEFAULT 'راست‌باز'",
                 "ALTER TABLE \"Products\" ADD COLUMN \"TaxRate\" REAL NOT NULL DEFAULT -1",
+
+                // ── Orders (v3: مراحل زمان‌دار) ──────────────────────────────
+                "ALTER TABLE \"Orders\" ADD COLUMN \"ProductionStartedAt\" TEXT",
+                "ALTER TABLE \"Orders\" ADD COLUMN \"ReadyAt\" TEXT",
+
+                // ── CalendarEvents (v2: ارجاع + تاریخ میلادی) ────────────────
+                "ALTER TABLE \"CalendarEvents\" ADD COLUMN \"EventDate\" TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP",
+                "ALTER TABLE \"CalendarEvents\" ADD COLUMN \"InvoiceId\" INTEGER",
+                "ALTER TABLE \"CalendarEvents\" ADD COLUMN \"InvoiceNumber\" TEXT NOT NULL DEFAULT ''",
+                "ALTER TABLE \"CalendarEvents\" ADD COLUMN \"OrderId\" INTEGER",
+                "ALTER TABLE \"CalendarEvents\" ADD COLUMN \"OrderNumber\" TEXT NOT NULL DEFAULT ''",
             };
 
             foreach (var sql in columnUpgrades)

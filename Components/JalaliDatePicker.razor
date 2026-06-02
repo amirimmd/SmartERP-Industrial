@@ -1,0 +1,142 @@
+@using SmartERP.Helpers
+@using System.Globalization
+
+<div class="jdp-wrapper" style="position:relative;display:inline-block;width:100%;">
+    <input type="text"
+           class="input-field jdp-input"
+           style="margin-bottom:0;cursor:pointer;caret-color:transparent;"
+           value="@DisplayValue"
+           placeholder="@Placeholder"
+           readonly
+           @onclick="ToggleCalendar"
+           @onkeydown="HandleKeyDown" />
+    @if (showCalendar)
+    {
+        <div class="jdp-popup" @onclick:stopPropagation="true">
+            <!-- هدر ماه -->
+            <div class="jdp-header">
+                <button class="jdp-nav-btn" @onclick="PrevMonth">&#8250;</button>
+                <span class="jdp-month-label">@JalaliHelper.MonthName(viewMonth) @viewYear</span>
+                <button class="jdp-nav-btn" @onclick="NextMonth">&#8249;</button>
+            </div>
+            <!-- روزهای هفته -->
+            <div class="jdp-grid">
+                @foreach (var h in JalaliHelper.WeekDayHeaders)
+                {
+                    <div class="jdp-cell jdp-weekday">@h</div>
+                }
+                <!-- فضای خالی قبل از روز اول -->
+                @for (int i = 0; i < JalaliHelper.FirstDayOffset(viewYear, viewMonth); i++)
+                {
+                    <div class="jdp-cell"></div>
+                }
+                <!-- روزها -->
+                @for (int d = 1; d <= JalaliHelper.DaysInJalaliMonth(viewYear, viewMonth); d++)
+                {
+                    var day = d;
+                    var isToday = (viewYear == todayY && viewMonth == todayM && day == todayD);
+                    var isSelected = (selectedY == viewYear && selectedM == viewMonth && selectedD == day);
+                    <div class="jdp-cell jdp-day @(isToday ? "jdp-today" : "") @(isSelected ? "jdp-selected" : "")"
+                         @onclick="() => SelectDay(day)">
+                        @day
+                    </div>
+                }
+            </div>
+            <!-- دکمه امروز -->
+            <div style="padding:0.4rem;border-top:1px solid var(--border-color);text-align:center;">
+                <button class="jdp-today-btn" @onclick="GoToday">امروز</button>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter] public DateTime? Value { get; set; }
+    [Parameter] public EventCallback<DateTime?> ValueChanged { get; set; }
+    [Parameter] public string Label { get; set; } = "";
+    [Parameter] public string Placeholder { get; set; } = "انتخاب تاریخ...";
+
+    bool showCalendar = false;
+    int viewYear, viewMonth;
+    int todayY, todayM, todayD;
+    int selectedY, selectedM, selectedD;
+
+    string DisplayValue => (selectedY > 0)
+        ? $"{selectedY:D4}/{selectedM:D2}/{selectedD:D2}"
+        : "";
+
+    protected override void OnInitialized()
+    {
+        var (ty, tm, td) = JalaliHelper.Today();
+        todayY = ty; todayM = tm; todayD = td;
+
+        if (Value.HasValue)
+        {
+            var (y, m, d) = JalaliHelper.ToJalali(Value.Value);
+            selectedY = y; selectedM = m; selectedD = d;
+            viewYear = y; viewMonth = m;
+        }
+        else
+        {
+            selectedY = ty; selectedM = tm; selectedD = td;
+            viewYear = ty; viewMonth = tm;
+            // emit default today
+            _ = ValueChanged.InvokeAsync(JalaliHelper.ToGregorian(ty, tm, td));
+        }
+    }
+
+    protected override void OnParametersSet()
+    {
+        if (Value.HasValue)
+        {
+            var (y, m, d) = JalaliHelper.ToJalali(Value.Value);
+            selectedY = y; selectedM = m; selectedD = d;
+        }
+    }
+
+    void ToggleCalendar() { showCalendar = !showCalendar; }
+
+    void PrevMonth()
+    {
+        var (py, pm) = JalaliHelper.PrevMonth(viewYear, viewMonth);
+        viewYear = py; viewMonth = pm;
+    }
+
+    void NextMonth()
+    {
+        var (ny, nm) = JalaliHelper.NextMonth(viewYear, viewMonth);
+        viewYear = ny; viewMonth = nm;
+    }
+
+    async Task SelectDay(int d)
+    {
+        selectedY = viewYear; selectedM = viewMonth; selectedD = d;
+        showCalendar = false;
+        await ValueChanged.InvokeAsync(JalaliHelper.ToGregorian(selectedY, selectedM, selectedD));
+    }
+
+    async Task GoToday()
+    {
+        selectedY = todayY; selectedM = todayM; selectedD = todayD;
+        viewYear = todayY; viewMonth = todayM;
+        showCalendar = false;
+        await ValueChanged.InvokeAsync(JalaliHelper.ToGregorian(selectedY, selectedM, selectedD));
+    }
+
+    async Task HandleKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "ArrowUp")   await ShiftDay(+1);
+        if (e.Key == "ArrowDown") await ShiftDay(-1);
+        if (e.Key == "Escape")    showCalendar = false;
+        if (e.Key == "Enter")     ToggleCalendar();
+    }
+
+    async Task ShiftDay(int delta)
+    {
+        var greg = JalaliHelper.ToGregorian(selectedY, selectedM, selectedD).AddDays(delta);
+        var (y, m, d) = JalaliHelper.ToJalali(greg);
+        selectedY = y; selectedM = m; selectedD = d;
+        viewYear = y; viewMonth = m;
+        await ValueChanged.InvokeAsync(greg);
+    }
+}
