@@ -1,4 +1,9 @@
 @page "/invoices"
+@using SmartERP.Core
+@using SmartERP.Infrastructure
+@using Microsoft.EntityFrameworkCore
+@using System.Text.Json
+@using SmartERP.Helpers
 @implements IDisposable
 @inject IDbContextFactory<AppDbContext> DbFactory
 @inject NavigationManager NavManager
@@ -81,7 +86,7 @@
                             <td style="padding:1rem 1.25rem;">
                                 <div class="industrial-num" style="color:var(--primary-color);font-weight:bold;">@inv.InvoiceNumber</div>
                                 <div style="font-size:0.75rem;color:var(--text-muted);">@inv.InvoiceType</div>
-                                <div class="industrial-num" style="font-size:0.72rem;color:var(--text-muted);">@inv.InvoiceDate.ToString("yyyy/MM/dd")</div>
+                                <div class="industrial-num" style="font-size:0.72rem;color:var(--text-muted);">@JalaliHelper.ToJalaliString(inv.InvoiceDate)</div>
                                 @if (inv.IsUrgentProduction) { <div style="font-size:0.7rem;color:var(--danger);">🔴 فوری</div> }
                             </td>
                             <td style="padding:1rem 1.25rem;">
@@ -90,13 +95,12 @@
                                 @if (inv.CustomerId.HasValue) { <div style="font-size:0.7rem;color:var(--success);">✓ CRM</div> }
                             </td>
                             <td style="padding:1rem 1.25rem;">
-                                <!-- نوار پیشرفت ۶ مرحله‌ای -->
-                                <div style="display:flex;gap:3px;margin-bottom:0.4rem;">
-                                    @for (int s = 1; s <= 6; s++)
-                                    {
-                                        var sIdx = s;
-                                        <div style="height:4px;flex:1;border-radius:2px;background:@(inv.CurrentStep >= sIdx ? GetStepColor(sIdx) : "var(--border-color)");"></div>
-                                    }
+                                <!-- نوار پیشرفت ۶ مرحله‌ای با درصد -->
+                                <div style="display:flex;align-items:center;gap:0.4rem;margin-bottom:0.35rem;">
+                                    <div style="flex:1;height:4px;background:var(--border-color);border-radius:2px;overflow:hidden;">
+                                        <div style="height:100%;width:@(inv.GetInvoiceWorkflowPercentage())%;background:@GetStepColor(inv.CurrentStep);border-radius:2px;"></div>
+                                    </div>
+                                    <span class="industrial-num" style="font-size:0.7rem;color:@GetStepColor(inv.CurrentStep);font-weight:bold;white-space:nowrap;">مرحله @inv.CurrentStep از ۶ — @(inv.GetInvoiceWorkflowPercentage())٪</span>
                                 </div>
                                 <span style="font-size:0.8rem;font-weight:bold;color:@GetStepColor(inv.CurrentStep);">@inv.Status</span>
                             </td>
@@ -107,7 +111,20 @@
                             <td style="padding:1rem 1.25rem;text-align:center;">
                                 <div style="display:flex;gap:0.4rem;justify-content:center;flex-wrap:wrap;">
                                     <button style="background:var(--bg-color);border:1px solid var(--border-color);color:var(--text-main);cursor:pointer;padding:0.3rem 0.6rem;border-radius:var(--radius-md);font-size:0.78rem;" @onclick="() => OpenWizard(inv)">ادامه کار</button>
-                                    <button style="background:var(--primary-color);border:none;color:#000;cursor:pointer;padding:0.3rem 0.6rem;border-radius:var(--radius-md);font-size:0.78rem;font-weight:bold;" @onclick="() => PrintInvoice(inv.Id)">چاپ</button>
+                                    <!-- منوی کشویی چاپ -->
+                                    <div style="position:relative;display:inline-block;">
+                                        <button style="background:var(--primary-color);border:none;color:#000;cursor:pointer;padding:0.3rem 0.6rem;border-radius:var(--radius-md);font-size:0.78rem;font-weight:bold;"
+                                                @onclick="() => TogglePrintMenu(inv.Id)">🖨 چاپ ▾</button>
+                                        @if (openPrintMenuId == inv.Id)
+                                        {
+                                            var pId = inv.Id;
+                                            <div style="position:absolute;top:100%;left:0;z-index:400;background:var(--surface-color);border:1px solid var(--border-color);border-radius:var(--radius-md);min-width:180px;padding:0.3rem 0;" @onclick:stopPropagation="true">
+                                                <button @onclick="() => PrintNav(pId, 1)" style="display:block;width:100%;text-align:right;padding:0.5rem 1rem;background:none;border:none;color:var(--text-main);cursor:pointer;font-family:var(--font-fa);font-size:0.82rem;">📄 فاکتور مشتری</button>
+                                                <button @onclick="() => PrintNav(pId, 2)" style="display:block;width:100%;text-align:right;padding:0.5rem 1rem;background:none;border:none;color:var(--text-main);cursor:pointer;font-family:var(--font-fa);font-size:0.82rem;">📋 سند داخلی کامل</button>
+                                                <button @onclick="() => PrintNav(pId, 3)" style="display:block;width:100%;text-align:right;padding:0.5rem 1rem;background:none;border:none;color:var(--text-main);cursor:pointer;font-family:var(--font-fa);font-size:0.82rem;">🚚 برگ تحویل</button>
+                                            </div>
+                                        }
+                                    </div>
                                     <button style="background:none;border:1px solid rgba(239,68,68,0.3);color:var(--danger);cursor:pointer;padding:0.3rem 0.5rem;border-radius:var(--radius-md);font-size:0.78rem;" @onclick="() => DeleteInvoice(inv.Id)">حذف</button>
                                 </div>
                             </td>
@@ -126,10 +143,11 @@
         <div class="card" style="width:100%;max-width:1040px;max-height:96vh;overflow-y:auto;border-top:3px solid var(--primary-color);display:flex;flex-direction:column;" @onclick:stopPropagation="true">
 
             <!-- هدر ویزارد -->
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.5rem;border-bottom:1px solid var(--border-color);padding-bottom:1rem;flex-shrink:0;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.25rem;border-bottom:1px solid var(--border-color);padding-bottom:1rem;flex-shrink:0;">
                 <div>
                     <h2 style="font-size:1.2rem;color:var(--text-main);font-weight:800;">@(editingInvoice.Id == 0 ? "صدور سند جدید" : $"سند {editingInvoice.InvoiceNumber}")</h2>
-                    @if (!string.IsNullOrEmpty(editingInvoice.CustomerName)) { <p style="font-size:0.82rem;color:var(--text-muted);margin:0;">@editingInvoice.CustomerName</p> }
+                    @if (!string.IsNullOrEmpty(editingInvoice.CustomerName)) { <p style="font-size:0.82rem;color:var(--text-muted);margin:0.1rem 0 0;">@editingInvoice.CustomerName</p> }
+                    <p style="font-size:0.78rem;color:@GetStepColor(wizardStep);margin:0.15rem 0 0;font-weight:bold;">مرحله @wizardStep از ۶ — @editingInvoice.GetInvoiceWorkflowPercentage()٪ تکمیل شده</p>
                 </div>
                 <button style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:1.5rem;" @onclick="CloseWizard">✕</button>
             </div>
@@ -283,72 +301,111 @@
                     </div>
                     @if (editingInvoice.FrameOrderEnabled)
                     {
-                        <!-- فرم افزودن چهارچوب -->
-                        <div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr 1fr auto;gap:0.5rem;align-items:flex-end;margin-bottom:0.75rem;">
+                        <!-- فرم افزودن چهارچوب - بهبود‌یافته -->
+                        <div style="display:grid;grid-template-columns:2fr 1fr 1fr 0.8fr 0.8fr 1fr 1fr 0.7fr auto;gap:0.4rem;align-items:flex-end;margin-bottom:0.75rem;">
                             <div>
-                                <label style="font-size:0.75rem;color:var(--text-muted);display:block;margin-bottom:0.25rem;">نام چهارچوب</label>
-                                <input type="text" @bind="frameItemForm.Name" class="input-field" style="margin-bottom:0;font-size:0.85rem;" placeholder="مثال: چهارچوب درب اتاق خواب" />
+                                <label style="font-size:0.72rem;color:var(--text-muted);display:block;margin-bottom:0.2rem;">نام چهارچوب</label>
+                                <input type="text" @bind="frameItemForm.Name" class="input-field" style="margin-bottom:0;font-size:0.83rem;" placeholder="درب اتاق خواب..." />
                             </div>
                             <div>
-                                <label style="font-size:0.75rem;color:var(--text-muted);display:block;margin-bottom:0.25rem;">نوع</label>
-                                <select @bind="frameItemForm.FrameType" class="input-field" style="margin-bottom:0;font-size:0.85rem;">
+                                <label style="font-size:0.72rem;color:var(--text-muted);display:block;margin-bottom:0.2rem;">نوع</label>
+                                <select value="@frameItemForm.FrameType"
+                                        @onchange="(e) => { frameItemForm.FrameType = e.Value?.ToString() ?? frameItemForm.FrameType; OnFrameTypeOrDirectionChange(e); }"
+                                        class="input-field" style="margin-bottom:0;font-size:0.82rem;">
                                     <option>چهارچوب فرانسوی</option>
                                     <option>چهارچوب مکزیکی</option>
                                 </select>
                             </div>
                             <div>
-                                <label style="font-size:0.75rem;color:var(--text-muted);display:block;margin-bottom:0.25rem;">جهت باز شدن</label>
-                                <select @bind="frameItemForm.OpeningDirection" class="input-field" style="margin-bottom:0;font-size:0.85rem;">
+                                <label style="font-size:0.72rem;color:var(--text-muted);display:block;margin-bottom:0.2rem;">جهت</label>
+                                <select value="@frameItemForm.OpeningDirection"
+                                        @onchange="(e) => { frameItemForm.OpeningDirection = e.Value?.ToString() ?? frameItemForm.OpeningDirection; OnFrameTypeOrDirectionChange(e); }"
+                                        class="input-field" style="margin-bottom:0;font-size:0.82rem;">
                                     <option>راست‌باز</option>
                                     <option>چپ‌باز</option>
                                 </select>
                             </div>
                             <div>
-                                <label style="font-size:0.75rem;color:var(--text-muted);display:block;margin-bottom:0.25rem;">قیمت (ریال)</label>
-                                <input type="number" @bind="frameItemForm.UnitPrice" class="input-field" style="margin-bottom:0;font-family:var(--font-en);font-size:0.85rem;" min="0" />
+                                <label style="font-size:0.72rem;color:var(--text-muted);display:block;margin-bottom:0.2rem;">طول (cm)</label>
+                                <input type="number" @bind="frameItemForm.Length" class="input-field" style="margin-bottom:0;font-family:var(--font-en);font-size:0.83rem;" min="0" placeholder="210" />
                             </div>
                             <div>
-                                <label style="font-size:0.75rem;color:var(--text-muted);display:block;margin-bottom:0.25rem;">تعداد</label>
-                                <div style="display:flex;border:1px solid var(--border-color);border-radius:var(--radius-md);overflow:hidden;">
-                                    <button @onclick="() => { if(frameItemForm.Quantity>1) frameItemForm.Quantity--; }" style="background:var(--surface-color);border:none;color:var(--text-muted);padding:0.4rem 0.6rem;cursor:pointer;font-size:1rem;font-weight:bold;">−</button>
-                                    <span class="industrial-num" style="flex:1;display:flex;align-items:center;justify-content:center;background:var(--bg-color);font-size:0.9rem;min-width:30px;">@frameItemForm.Quantity</span>
-                                    <button @onclick="() => frameItemForm.Quantity++" style="background:var(--surface-color);border:none;color:var(--text-muted);padding:0.4rem 0.6rem;cursor:pointer;font-size:1rem;font-weight:bold;">+</button>
+                                <label style="font-size:0.72rem;color:var(--text-muted);display:block;margin-bottom:0.2rem;">عرض (cm)</label>
+                                <input type="number" @bind="frameItemForm.Width" class="input-field" style="margin-bottom:0;font-family:var(--font-en);font-size:0.83rem;" min="0" placeholder="90" />
+                            </div>
+                            <div>
+                                <label style="font-size:0.72rem;color:var(--text-muted);display:block;margin-bottom:0.2rem;">قیمت واحد (ریال)</label>
+                                @{ var fPriceStr = frameItemForm.UnitPrice.ToString("N0"); }
+                                <input type="text" value="@fPriceStr"
+                                       @onchange="OnFrameUnitPriceChange"
+                                       @onkeydown="OnFrameUnitPriceKeyDown"
+                                       class="input-field industrial-num" style="margin-bottom:0;font-size:0.83rem;direction:ltr;text-align:left;" />
+                            </div>
+                            <div>
+                                <label style="font-size:0.72rem;color:var(--text-muted);display:block;margin-bottom:0.2rem;">تعداد</label>
+                                <div style="display:flex;border:1px solid var(--border-color);border-radius:var(--radius-md);overflow:hidden;height:38px;">
+                                    <button @onclick="() => { if(frameItemForm.Quantity>1) frameItemForm.Quantity--; }" style="background:var(--surface-color);border:none;color:var(--text-muted);padding:0 0.5rem;cursor:pointer;font-size:1.1rem;font-weight:bold;border-left:1px solid var(--border-color);">−</button>
+                                    <span class="industrial-num" style="flex:1;display:flex;align-items:center;justify-content:center;background:var(--bg-color);font-size:0.9rem;min-width:28px;">@frameItemForm.Quantity</span>
+                                    <button @onclick="() => frameItemForm.Quantity++" style="background:var(--surface-color);border:none;color:var(--primary-color);padding:0 0.5rem;cursor:pointer;font-size:1.1rem;font-weight:bold;border-right:1px solid var(--border-color);">+</button>
                                 </div>
                             </div>
-                            <button @onclick="AddFrameItem" class="btn-primary" style="padding:0.5rem 0.75rem;font-size:0.82rem;white-space:nowrap;">+ افزودن</button>
+                            <div>
+                                <label style="font-size:0.72rem;color:var(--text-muted);display:block;margin-bottom:0.2rem;">مالیات %</label>
+                                <input type="number"
+                                       value="@((frameItemForm.TaxRate * 100m).ToString("0"))"
+                                       @onchange="(e) => { if(decimal.TryParse(e.Value?.ToString(),out var v)) frameItemForm.TaxRate=v/100m; }"
+                                       class="input-field" style="margin-bottom:0;font-family:var(--font-en);font-size:0.83rem;" min="0" max="100" step="1" placeholder="9" />
+                            </div>
+                            <button @onclick="AddFrameItem" class="btn-primary" style="padding:0.5rem 0.6rem;font-size:0.8rem;white-space:nowrap;height:38px;">+ افزودن</button>
                         </div>
                         <!-- لیست چهارچوب‌ها -->
                         @if (frameItems.Any())
                         {
-                            <table style="width:100%;border-collapse:collapse;font-size:0.82rem;margin-bottom:0.5rem;">
+                            <table style="width:100%;border-collapse:collapse;font-size:0.8rem;margin-bottom:0.75rem;">
                                 <thead>
-                                    <tr style="color:var(--text-muted);border-bottom:1px solid var(--border-color);">
-                                        <th style="text-align:right;padding:0.35rem;">نام</th>
-                                        <th style="text-align:center;padding:0.35rem;">نوع</th>
-                                        <th style="text-align:center;padding:0.35rem;">جهت باز</th>
-                                        <th style="text-align:center;padding:0.35rem;">تعداد</th>
-                                        <th style="text-align:right;padding:0.35rem;">قیمت واحد (ریال)</th>
-                                        <th style="text-align:right;padding:0.35rem;">جمع (ریال)</th>
+                                    <tr style="color:var(--text-muted);border-bottom:1px solid var(--border-color);background:var(--bg-color);">
+                                        <th style="text-align:right;padding:0.3rem 0.5rem;">نام</th>
+                                        <th style="text-align:center;padding:0.3rem;">نوع</th>
+                                        <th style="text-align:center;padding:0.3rem;">جهت</th>
+                                        <th style="text-align:center;padding:0.3rem;">ابعاد (cm)</th>
+                                        <th style="text-align:center;padding:0.3rem;">تعداد</th>
+                                        <th style="text-align:right;padding:0.3rem;">قیمت واحد</th>
+                                        <th style="text-align:right;padding:0.3rem;">جمع</th>
                                         <th style="width:30px;"></th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     @foreach (var fi in frameItems)
                                     {
+                                        var fiSub = fi.UnitPrice * fi.Quantity;
                                         <tr style="border-bottom:1px dashed var(--border-color);">
-                                            <td style="padding:0.35rem;font-weight:600;">@fi.Name</td>
-                                            <td style="text-align:center;padding:0.35rem;color:var(--text-muted);">@fi.FrameType</td>
-                                            <td style="text-align:center;padding:0.35rem;color:var(--text-muted);">@fi.OpeningDirection</td>
-                                            <td style="text-align:center;padding:0.35rem;" class="industrial-num">@fi.Quantity</td>
-                                            <td style="text-align:right;padding:0.35rem;color:var(--text-muted);" class="industrial-num">@fi.UnitPrice.ToString("N0")</td>
-                                            <td style="text-align:right;padding:0.35rem;color:var(--primary-color);font-weight:bold;" class="industrial-num">@((fi.UnitPrice * fi.Quantity).ToString("N0"))</td>
-                                            <td style="text-align:center;padding:0.35rem;"><button @onclick="() => frameItems.Remove(fi)" style="background:none;border:none;color:var(--danger);cursor:pointer;">✕</button></td>
+                                            <td style="padding:0.3rem 0.5rem;font-weight:600;">@fi.Name</td>
+                                            <td style="text-align:center;padding:0.3rem;color:var(--text-muted);font-size:0.75rem;">@fi.FrameType</td>
+                                            <td style="text-align:center;padding:0.3rem;color:var(--text-muted);">@fi.OpeningDirection</td>
+                                            <td class="industrial-num" style="text-align:center;padding:0.3rem;font-size:0.75rem;color:var(--text-muted);">@(fi.Length > 0 ? $"{fi.Length}×{fi.Width}" : "—")</td>
+                                            <td class="industrial-num" style="text-align:center;padding:0.3rem;">@fi.Quantity</td>
+                                            <td style="text-align:right;padding:0.3rem;color:var(--text-muted);" class="industrial-num">@fi.UnitPrice.ToString("N0")</td>
+                                            <td style="text-align:right;padding:0.3rem;color:var(--primary-color);font-weight:bold;" class="industrial-num">@fiSub.ToString("N0")</td>
+                                            <td style="text-align:center;padding:0.3rem;"><button @onclick="() => frameItems.Remove(fi)" style="background:none;border:none;color:var(--danger);cursor:pointer;">✕</button></td>
                                         </tr>
                                     }
                                 </tbody>
                             </table>
-                            <div style="text-align:left;font-size:0.82rem;color:var(--text-muted);">
-                                جمع چهارچوب: <span class="industrial-num" style="color:var(--success);">@frameItems.Sum(f => f.UnitPrice * f.Quantity).ToString("N0")</span> ریال
+                            <div style="background:var(--bg-color);border:1px solid var(--border-color);border-radius:var(--radius-md);padding:0.75rem 1rem;font-size:0.83rem;">
+                                @{ var frameTax = frameItems.Sum(f => f.UnitPrice * f.Quantity * (f.TaxRate > 0 ? f.TaxRate : 0.09m));
+                                   var frameSubtotal = frameItems.Sum(f => f.UnitPrice * f.Quantity); }
+                                <div style="display:flex;justify-content:space-between;margin-bottom:0.3rem;">
+                                    <span style="color:var(--text-muted);">جمع چهارچوب‌ها:</span>
+                                    <span class="industrial-num" style="color:var(--text-main);">@frameSubtotal.ToString("N0") ریال</span>
+                                </div>
+                                <div style="display:flex;justify-content:space-between;margin-bottom:0.3rem;">
+                                    <span style="color:var(--text-muted);">مالیات:</span>
+                                    <span class="industrial-num" style="color:var(--text-muted);">@frameTax.ToString("N0") ریال</span>
+                                </div>
+                                <div style="display:flex;justify-content:space-between;font-weight:bold;">
+                                    <span style="color:var(--success);">جمع کل با مالیات:</span>
+                                    <span class="industrial-num" style="color:var(--success);">@((frameSubtotal + frameTax).ToString("N0")) ریال</span>
+                                </div>
                             </div>
                         }
                         else
@@ -393,7 +450,7 @@
                             <div><label style="display:block;margin-bottom:0.3rem;color:var(--text-muted);font-size:0.8rem;">مبلغ چک</label><input type="number" @bind="editingInvoice.CheckAmount" class="input-field" style="margin-bottom:0;font-family:var(--font-en);" /></div>
                             <div><label style="display:block;margin-bottom:0.3rem;color:var(--text-muted);font-size:0.8rem;">شماره صیاد</label><input type="text" @bind="editingInvoice.CheckNumber" class="input-field" style="margin-bottom:0;font-family:var(--font-en);direction:ltr;" /></div>
                             <div><label style="display:block;margin-bottom:0.3rem;color:var(--text-muted);font-size:0.8rem;">بانک</label><input type="text" @bind="editingInvoice.CheckBankName" class="input-field" style="margin-bottom:0;" /></div>
-                            <div><label style="display:block;margin-bottom:0.3rem;color:var(--text-muted);font-size:0.8rem;">سررسید</label><input type="date" @bind="editingInvoice.CheckDueDate" class="input-field" style="margin-bottom:0;font-family:var(--font-en);" /></div>
+                            <div><label style="display:block;margin-bottom:0.3rem;color:var(--text-muted);font-size:0.8rem;">سررسید چک</label><JalaliDatePicker @bind-Value="editingInvoice.CheckDueDate" Placeholder="انتخاب تاریخ..." /></div>
                         </div>
                     }
                 </div>
@@ -421,8 +478,8 @@
                                     <span style="font-weight:bold;color:var(--danger);">🔴 تولید فوری (اولویت بالا)</span>
                                 </div>
                                 <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1rem;">
-                                    <div><label style="display:block;margin-bottom:0.3rem;color:var(--text-muted);font-size:0.82rem;">تاریخ شروع تولید</label><input type="date" @bind="editingInvoice.ProductionDate" class="input-field" style="margin-bottom:0;font-family:var(--font-en);" /></div>
-                                    <div><label style="display:block;margin-bottom:0.3rem;color:var(--text-muted);font-size:0.82rem;">مهلت تحویل تولید</label><input type="date" @bind="editingInvoice.ProductionDeadline" class="input-field" style="margin-bottom:0;font-family:var(--font-en);" /></div>
+                                    <div><label style="display:block;margin-bottom:0.3rem;color:var(--text-muted);font-size:0.82rem;">تاریخ شروع تولید</label><JalaliDatePicker @bind-Value="editingInvoice.ProductionDate" Placeholder="انتخاب تاریخ..." /></div>
+                                    <div><label style="display:block;margin-bottom:0.3rem;color:var(--text-muted);font-size:0.82rem;">مهلت تحویل تولید</label><JalaliDatePicker @bind-Value="editingInvoice.ProductionDeadline" Placeholder="انتخاب تاریخ..." /></div>
                                 </div>
                                 <div style="margin-bottom:1rem;"><label style="display:block;margin-bottom:0.3rem;color:var(--text-muted);font-size:0.82rem;">مشخصات فنی / دستورالعمل خط تولید</label><textarea @bind="editingInvoice.ProductionNotes" class="input-field" style="min-height:90px;resize:vertical;margin-bottom:0;" placeholder="ابعاد، رنگ، مدل، دستورالعمل..."></textarea></div>
                                 <div style="background:rgba(245,158,11,0.07);border:1px solid rgba(245,158,11,0.25);border-radius:var(--radius-md);padding:1rem;cursor:pointer;" @onclick="() => editingInvoice.AutoCreateProductionOrder=!editingInvoice.AutoCreateProductionOrder">
@@ -488,8 +545,8 @@
                             }
                         </div>
                         <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;">
-                            <div><label style="display:block;margin-bottom:0.3rem;color:var(--text-muted);font-size:0.82rem;">تاریخ ارسال</label><input type="date" @bind="editingInvoice.DispatchDate" class="input-field" style="margin-bottom:0;font-family:var(--font-en);" /></div>
-                            <div><label style="display:block;margin-bottom:0.3rem;color:var(--text-muted);font-size:0.82rem;">تاریخ تحویل پیش‌بینی‌شده</label><input type="date" @bind="editingInvoice.DeliveryDate" class="input-field" style="margin-bottom:0;font-family:var(--font-en);" /></div>
+                            <div><label style="display:block;margin-bottom:0.3rem;color:var(--text-muted);font-size:0.82rem;">تاریخ ارسال</label><JalaliDatePicker @bind-Value="editingInvoice.DispatchDate" Placeholder="انتخاب تاریخ..." /></div>
+                            <div><label style="display:block;margin-bottom:0.3rem;color:var(--text-muted);font-size:0.82rem;">تاریخ تحویل پیش‌بینی‌شده</label><JalaliDatePicker @bind-Value="editingInvoice.DeliveryDate" Placeholder="انتخاب تاریخ..." /></div>
                         </div>
                     </div>
                     <div style="background:var(--bg-color);border:1px solid var(--border-color);border-radius:var(--radius-md);padding:1.25rem;margin-bottom:1.25rem;">
@@ -550,7 +607,7 @@
                     <div style="background:var(--bg-color);border:1px solid var(--border-color);border-radius:var(--radius-md);padding:1.25rem;margin-bottom:1.25rem;">
                         <h3 style="font-size:0.9rem;color:var(--text-muted);font-weight:bold;margin-bottom:1rem;">زمان‌بندی نصب</h3>
                         <div style="display:grid;grid-template-columns:1fr 2fr;gap:1rem;margin-bottom:1rem;">
-                            <div><label style="display:block;margin-bottom:0.3rem;color:var(--text-muted);font-size:0.82rem;">تاریخ و ساعت نصب</label><input type="datetime-local" @bind="editingInvoice.InstallationDateTime" class="input-field" style="margin-bottom:0;font-family:var(--font-en);" /></div>
+                            <div><label style="display:block;margin-bottom:0.3rem;color:var(--text-muted);font-size:0.82rem;">تاریخ نصب</label><JalaliDatePicker @bind-Value="editingInvoice.InstallationDateTime" Placeholder="انتخاب تاریخ..." /></div>
                             <div><label style="display:block;margin-bottom:0.3rem;color:var(--text-muted);font-size:0.82rem;">دستورالعمل نصب</label><input type="text" @bind="editingInvoice.InstallationNotes" class="input-field" style="margin-bottom:0;" placeholder="نکات فنی نصب..." /></div>
                         </div>
                     </div>
@@ -665,11 +722,13 @@
     private List<Customer> custSuggestions = new();
     private List<SmartERP.Core.Personnel> installers = new();
     private List<AfterSalesTicket> invoiceTickets = new();
+    private List<FramePriceSetting> framePriceSettings = new();
     private bool showSuggestions = false;
     private bool isLoading = true;
     private bool isSaving = false;
     private bool isWizardOpen = false;
     private int wizardStep = 1;
+    private int openPrintMenuId = 0;
     private string wizardError = "";
     private string pageError = "";
     private string itemError = "";
@@ -719,6 +778,7 @@
             invoices = await _db.Invoices.AsNoTracking().OrderByDescending(i => i.Id).ToListAsync();
             availableProducts = await _db.Products.AsNoTracking().Where(p => p.IsActive).OrderBy(p => p.Name).ToListAsync();
             installers = await _db.Personnel.AsNoTracking().Where(p => p.IsActive && (p.Role == "نصاب" || p.Role == "تکنیسین")).OrderBy(p => p.FullName).ToListAsync();
+            try { framePriceSettings = await _db.FramePriceSettings.AsNoTracking().ToListAsync(); } catch { framePriceSettings = new(); }
             ApplyFilter();
         }
         catch (Exception ex) { pageError = $"خطا: {ex.Message}"; }
@@ -981,6 +1041,9 @@
                 // یکپارچه‌سازی CRM
                 await SyncCrm(db);
 
+                // ثبت رویدادهای تقویم (سررسید چک + مهلت تولید)
+                await CreateCalendarEventIfNeeded(db, editingInvoice);
+
                 await db.SaveChangesAsync();
 
                 // دستور کار تولید
@@ -1102,6 +1165,80 @@
     }
 
     private void PrintInvoice(int id) => NavManager.NavigateTo($"/print/invoice/{id}");
+
+    private void PrintNav(int id, int type)
+    {
+        openPrintMenuId = 0;
+        var url = type switch { 2 => $"/print/invoice-internal/{id}", 3 => $"/print/invoice-delivery/{id}", _ => $"/print/invoice/{id}" };
+        NavManager.NavigateTo(url);
+    }
+
+    private void TogglePrintMenu(int id)
+    {
+        openPrintMenuId = openPrintMenuId == id ? 0 : id;
+        StateHasChanged();
+    }
+
+    private void OnFrameUnitPriceChange(ChangeEventArgs e)
+    {
+        var raw = (e.Value?.ToString() ?? "").Replace(",", "").Trim();
+        if (decimal.TryParse(raw, out var v)) frameItemForm.UnitPrice = Math.Max(0, v);
+        StateHasChanged();
+    }
+
+    private void OnFrameUnitPriceKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "ArrowUp")   { frameItemForm.UnitPrice += 10000; StateHasChanged(); }
+        if (e.Key == "ArrowDown") { frameItemForm.UnitPrice = Math.Max(0, frameItemForm.UnitPrice - 10000); StateHasChanged(); }
+    }
+
+    // ── قیمت خودکار چهارچوب بر اساس نوع و جهت ──
+    private void OnFrameTypeOrDirectionChange(ChangeEventArgs _)
+    {
+        var match = framePriceSettings.FirstOrDefault(fp =>
+            fp.FrameType == frameItemForm.FrameType &&
+            fp.OpeningDirection == frameItemForm.OpeningDirection);
+        if (match != null) frameItemForm.UnitPrice = match.BasePrice;
+        StateHasChanged();
+    }
+
+    // ── ثبت رویداد تقویم ──
+    private async Task CreateCalendarEventIfNeeded(AppDbContext db, Invoice inv)
+    {
+        // سررسید چک
+        if (inv.CheckDueDate.HasValue && (inv.PaymentMethod == "چکی" || inv.PaymentMethod == "ترکیبی"))
+        {
+            db.CalendarEvents.Add(new CalendarEvent
+            {
+                JalaliDate = JalaliHelper.ToJalaliString(inv.CheckDueDate.Value),
+                EventDate = inv.CheckDueDate.Value,
+                Title = $"سررسید چک: {inv.CustomerName} — {inv.CheckAmount:N0} ریال",
+                EventType = "مالی",
+                Description = $"چک شماره {inv.CheckNumber} — بانک {inv.CheckBankName} — فاکتور {inv.InvoiceNumber}",
+                InvoiceId = inv.Id,
+                InvoiceNumber = inv.InvoiceNumber,
+                CheckAmount = inv.CheckAmount,
+                CheckNumber = inv.CheckNumber,
+                AuthorRole = "مالی"
+            });
+        }
+        // مهلت تولید
+        if (inv.ProductionDeadline.HasValue)
+        {
+            db.CalendarEvents.Add(new CalendarEvent
+            {
+                JalaliDate = JalaliHelper.ToJalaliString(inv.ProductionDeadline.Value),
+                EventDate = inv.ProductionDeadline.Value,
+                Title = $"مهلت تولید: {inv.InvoiceNumber} — {inv.CustomerName}",
+                EventType = "تولید",
+                Description = inv.ProductionNotes,
+                InvoiceId = inv.Id,
+                InvoiceNumber = inv.InvoiceNumber,
+                AuthorRole = "تولید"
+            });
+        }
+        await Task.CompletedTask;
+    }
 
     private async Task DeleteInvoice(int id)
     {

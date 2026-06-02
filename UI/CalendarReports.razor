@@ -1,6 +1,12 @@
 @page "/calendar"
+@using SmartERP.Core
+@using SmartERP.Infrastructure
+@using Microsoft.EntityFrameworkCore
+@using SmartERP.Helpers
+@using Microsoft.JSInterop
 @implements IDisposable
 @inject IDbContextFactory<AppDbContext> DbFactory
+@inject IJSRuntime JSRuntime
 
 <div style="padding:0 0 2rem;">
 
@@ -10,9 +16,11 @@
             <h1 style="color:var(--primary-color);font-weight:800;font-size:1.8rem;margin-bottom:0.4rem;">تقویم شمسی و گزارش‌ها</h1>
             <p style="color:var(--text-muted);margin:0;font-size:0.9rem;">ثبت چک، گزارش مالی، یادآوری‌ها و جلسات بر روی تقویم جلالی</p>
         </div>
-        <div style="font-size:0.85rem;color:var(--text-muted);">
-            امروز:
-            <span class="industrial-num" style="color:var(--primary-color);font-weight:700;margin-right:0.3rem;">@todayStr</span>
+        <div style="display:flex;align-items:center;gap:1rem;">
+            <div style="font-size:0.85rem;color:var(--text-muted);">
+                امروز: <span class="industrial-num" style="color:var(--primary-color);font-weight:700;margin-right:0.3rem;">@todayStr</span>
+            </div>
+            <button class="btn-primary" style="font-size:0.83rem;padding:0.4rem 1rem;" @onclick="OpenDailyReport">📋 گزارش روزانه</button>
         </div>
     </div>
 
@@ -324,6 +332,49 @@
     </div>
 </div>
 
+<!-- ══════════ Modal گزارش روزانه ══════════ -->
+@if (showDailyReport)
+{
+    <div style="position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(9,9,11,0.95);z-index:500;display:flex;align-items:center;justify-content:center;padding:1rem;" @onclick="() => showDailyReport=false">
+        <div class="card" style="width:100%;max-width:760px;max-height:92vh;overflow-y:auto;border-top:3px solid var(--primary-color);" @onclick:stopPropagation="true">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.25rem;border-bottom:1px solid var(--border-color);padding-bottom:1rem;">
+                <div>
+                    <h2 style="font-size:1.1rem;color:var(--text-main);font-weight:800;">📋 گزارش وظایف روزانه</h2>
+                    <p style="font-size:0.8rem;color:var(--text-muted);margin:0.1rem 0 0;">مورخ @todayStr — @dailyEvents.Count رویداد</p>
+                </div>
+                <div style="display:flex;gap:0.5rem;align-items:center;">
+                    <button class="btn-primary" style="font-size:0.8rem;padding:0.4rem 0.8rem;" @onclick="PrintDailyReport">🖨 چاپ</button>
+                    <button style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:1.5rem;" @onclick="() => showDailyReport=false">✕</button>
+                </div>
+            </div>
+            @if (!dailyEvents.Any())
+            {
+                <div style="text-align:center;color:var(--text-muted);padding:3rem;">هیچ رویدادی برای امروز ثبت نشده است.</div>
+            }
+            else
+            {
+                @foreach (var group in dailyEvents.GroupBy(e => e.EventType).OrderBy(g => g.Key))
+                {
+                    <div style="margin-bottom:1.25rem;">
+                        <div style="font-size:0.85rem;font-weight:bold;color:@GetEventColor(group.Key);border-bottom:1px solid var(--border-color);padding-bottom:0.4rem;margin-bottom:0.75rem;">
+                            @GetEventTypeIcon(group.Key) @group.Key (@group.Count())
+                        </div>
+                        @foreach (var ev in group)
+                        {
+                            <div style="background:var(--bg-color);border:1px solid var(--border-color);border-right:3px solid @GetEventColor(ev.EventType);border-radius:var(--radius-md);padding:0.6rem 0.85rem;margin-bottom:0.5rem;">
+                                <div style="font-weight:bold;font-size:0.88rem;color:var(--text-main);">@ev.Title</div>
+                                @if (!string.IsNullOrEmpty(ev.Description)) { <div style="font-size:0.78rem;color:var(--text-muted);margin-top:0.2rem;">@ev.Description</div> }
+                                @if (ev.CheckAmount.HasValue) { <div style="font-size:0.78rem;color:var(--primary-color);margin-top:0.15rem;" class="industrial-num">مبلغ: @ev.CheckAmount.Value.ToString("N0") ریال | شماره: @ev.CheckNumber</div> }
+                                @if (!string.IsNullOrEmpty(ev.InvoiceNumber)) { <div style="font-size:0.72rem;color:var(--accent-color);">فاکتور: @ev.InvoiceNumber</div> }
+                            </div>
+                        }
+                    </div>
+                }
+            }
+        </div>
+    </div>
+}
+
 @code {
     private AppDbContext _db = null!;
     private List<CalendarEvent> monthEvents = new();
@@ -338,6 +389,8 @@
     private bool showAddForm = false;
     private bool isSaving = false;
     private string formError = "";
+    private bool showDailyReport = false;
+    private List<CalendarEvent> dailyEvents = new();
 
     // ── فیلدهای فرم ثبت رویداد ──────────────────────────────────────────
     private string  newTitle       = "";
@@ -464,6 +517,35 @@
 
     private static string GetEventColor(string type)
         => _eventTypeColors.TryGetValue(type, out var c) ? c : "#94a3b8";
+
+    private static string GetEventTypeIcon(string type) => type switch
+    {
+        "چک"        => "💰",
+        "تولید"     => "⚙",
+        "تحویل"     => "🚚",
+        "مالی"      => "💳",
+        "جلسه"      => "📅",
+        "ضرب_الاجل" => "⚠",
+        _           => "📌"
+    };
+
+    private async Task OpenDailyReport()
+    {
+        try
+        {
+            dailyEvents = await _db.CalendarEvents.AsNoTracking()
+                .Where(e => e.JalaliDate == todayStr)
+                .OrderBy(e => e.EventType)
+                .ToListAsync();
+        }
+        catch { dailyEvents = new(); }
+        showDailyReport = true;
+    }
+
+    private async Task PrintDailyReport()
+    {
+        await JSRuntime.InvokeVoidAsync("window.print");
+    }
 
     public void Dispose() => _db?.Dispose();
 }

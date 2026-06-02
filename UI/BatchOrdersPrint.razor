@@ -23,10 +23,22 @@ else
         <button @onclick="GoBack" style="background:#374151;color:#fff;padding:10px 20px;border:none;border-radius:5px;font-weight:bold;cursor:pointer;font-family:'Tahoma';">بازگشت</button>
     </div>
 
-    @if (reportType == "production-line")
+    @if (true)
     {
-        <!-- گزارش خط تولید — یک صفحه به ازای هر سفارش -->
-        @foreach (var o in orders)
+        <!-- گزارش دستور کار تولید — با گروه‌بندی و فیلدهای انتخابی -->
+        @foreach (var group in GetGroups())
+        {
+        @if (groupBy != "none")
+        {
+            <div class="a4-page" style="page-break-after:always;">
+                <div style="text-align:center;padding:2rem;background:#1f2937;color:#fff;border-radius:4px;margin-bottom:1rem;">
+                    <div style="font-size:0.85rem;color:#9ca3af;">گروه:</div>
+                    <div style="font-size:1.4rem;font-weight:bold;">@group.Key</div>
+                    <div style="font-size:0.78rem;color:#d1d5db;margin-top:0.3rem;">@group.Count() سفارش</div>
+                </div>
+            </div>
+        }
+        @foreach (var o in group)
         {
             <div class="a4-page" style="page-break-after:always;">
                 <!-- هدر -->
@@ -136,52 +148,47 @@ else
                     }
                 </div>
             </div>
-        }
+        }   @*  end foreach order  *@
+        }   @*  end foreach group  *@
     }
-    else
-    {
-        <!-- گزارش فهرستی (روزانه / هفتگی / دلخواه) — یک صفحه -->
+
+        <!-- جدول خلاصه در صفحه پایانی -->
         <div class="a4-page">
-            <!-- هدر گزارش -->
-            <div style="display:flex;justify-content:space-between;align-items:flex-start;border-bottom:3px solid #111;padding-bottom:0.75rem;margin-bottom:0.75rem;">
+            <div style="border-bottom:3px solid #111;padding-bottom:0.75rem;margin-bottom:0.75rem;display:flex;justify-content:space-between;">
                 <div>
-                    <h1 style="font-size:1.2rem;font-weight:bold;margin:0 0 0.2rem;">@company?.CompanyName</h1>
-                    @if (!string.IsNullOrEmpty(company?.Slogan)) { <p style="font-size:0.78rem;margin:0;color:#555;">@company.Slogan</p> }
+                    <h2 style="font-size:1rem;font-weight:bold;margin:0;">@company?.CompanyName — @ReportTitle</h2>
+                    <div style="font-size:0.78rem;color:#555;margin-top:0.2rem;">تاریخ صدور: @JalaliHelper.ToJalaliString(DateTime.Now)</div>
                 </div>
-                <div style="text-align:center;border:2px solid #111;padding:0.5rem 1.25rem;border-radius:4px;">
-                    <div style="font-size:1rem;font-weight:bold;">@ReportTitle</div>
-                    <div style="font-size:0.82rem;font-family:'Courier New';color:#555;">@JalaliHelper.ToJalaliString(DateTime.Now)</div>
+                <div style="text-align:center;border:1px solid #111;padding:0.4rem 1rem;border-radius:3px;">
+                    <div style="font-size:0.8rem;color:#555;">جمع سفارشات</div>
+                    <div style="font-size:1.5rem;font-weight:bold;">@orders.Count</div>
                 </div>
             </div>
-
-            <!-- جدول فهرست -->
-            <table style="width:100%;border-collapse:collapse;font-size:0.82rem;">
+            <!-- جدول فهرست خلاصه -->
+            <table style="width:100%;border-collapse:collapse;font-size:0.8rem;margin-bottom:1rem;">
                 <thead>
                     <tr style="background:#1f2937;color:#fff;">
-                        <th style="padding:0.45rem 0.6rem;border:1px solid #374151;width:5%;text-align:center;">ردیف</th>
-                        <th style="padding:0.45rem 0.6rem;border:1px solid #374151;width:14%;text-align:right;">شماره سفارش</th>
-                        <th style="padding:0.45rem 0.6rem;border:1px solid #374151;text-align:right;">مشتری / پروژه</th>
-                        <th style="padding:0.45rem 0.6rem;border:1px solid #374151;width:20%;text-align:right;">شرح کالا</th>
-                        <th style="padding:0.45rem 0.6rem;border:1px solid #374151;width:12%;text-align:center;">اولویت</th>
-                        <th style="padding:0.45rem 0.6rem;border:1px solid #374151;width:14%;text-align:center;">تاریخ تحویل</th>
-                        <th style="padding:0.45rem 0.6rem;border:1px solid #374151;width:12%;text-align:center;">وضعیت</th>
-                        <th style="padding:0.45rem 0.6rem;border:1px solid #374151;width:12%;text-align:center;">تأیید مسئول</th>
+                        <th style="padding:0.4rem 0.5rem;border:1px solid #374151;">#</th>
+                        <th style="padding:0.4rem 0.5rem;border:1px solid #374151;text-align:right;">شماره سفارش</th>
+                        <th style="padding:0.4rem 0.5rem;border:1px solid #374151;text-align:right;">مشتری</th>
+                        <th style="padding:0.4rem 0.5rem;border:1px solid #374151;text-align:center;">اولویت</th>
+                        <th style="padding:0.4rem 0.5rem;border:1px solid #374151;text-align:center;">تاریخ تحویل</th>
+                        <th style="padding:0.4rem 0.5rem;border:1px solid #374151;text-align:center;">وضعیت</th>
+                        <th style="padding:0.4rem 0.5rem;border:1px solid #374151;text-align:center;">تأیید</th>
                     </tr>
                 </thead>
                 <tbody>
                     @{ int rowNum = 1; }
                     @foreach (var o in orders)
                     {
-                        var firstItem = ParseItems(o.ItemsJson).FirstOrDefault();
-                        <tr style="@(rowNum % 2 == 0 ? "background:#f9fafb;" : "")">
-                            <td style="padding:0.4rem;border:1px solid #ddd;text-align:center;font-family:'Courier New';color:#555;">@rowNum</td>
-                            <td style="padding:0.4rem 0.6rem;border:1px solid #ddd;font-family:'Courier New';font-weight:bold;color:#1a56db;">@o.OrderNumber</td>
-                            <td style="padding:0.4rem 0.6rem;border:1px solid #ddd;font-weight:bold;">@o.CustomerName</td>
-                            <td style="padding:0.4rem 0.6rem;border:1px solid #ddd;font-size:0.78rem;color:#555;">@(firstItem?.Name ?? o.TechnicalSpecs?.Split('\n').FirstOrDefault() ?? "")</td>
-                            <td style="padding:0.4rem;border:1px solid #ddd;text-align:center;font-size:0.78rem;color:@(o.ProductionPriority=="فوری" ? "#d00" : "#555");font-weight:@(o.ProductionPriority=="فوری" ? "bold" : "normal");">@o.ProductionPriority</td>
-                            <td style="padding:0.4rem;border:1px solid #ddd;text-align:center;font-family:'Courier New';font-size:0.78rem;color:@(o.ExpectedDelivery < DateTime.Now && o.Status != "آماده تحویل" ? "#d00" : "#333");">@JalaliHelper.ToJalaliString(o.ExpectedDelivery)</td>
-                            <td style="padding:0.4rem;border:1px solid #ddd;text-align:center;font-size:0.78rem;">@o.Status</td>
-                            <td style="padding:0.4rem;border:1px solid #ddd;"></td>
+                        <tr style="@(rowNum%2==0?"background:#f9fafb;":"")">
+                            <td style="padding:0.35rem;border:1px solid #ddd;text-align:center;font-family:'Courier New';">@rowNum</td>
+                            <td style="padding:0.35rem 0.5rem;border:1px solid #ddd;font-family:'Courier New';font-weight:bold;color:#1a56db;">@o.OrderNumber</td>
+                            <td style="padding:0.35rem 0.5rem;border:1px solid #ddd;font-weight:bold;">@o.CustomerName</td>
+                            <td style="padding:0.35rem;border:1px solid #ddd;text-align:center;color:@(o.ProductionPriority=="فوری"?"#d00":"#555");font-weight:@(o.ProductionPriority=="فوری"?"bold":"normal");">@o.ProductionPriority</td>
+                            <td style="padding:0.35rem;border:1px solid #ddd;text-align:center;font-family:'Courier New';color:@(o.ExpectedDelivery<DateTime.Now&&o.Status!="آماده تحویل"?"#d00":"#333");">@JalaliHelper.ToJalaliString(o.ExpectedDelivery)</td>
+                            <td style="padding:0.35rem;border:1px solid #ddd;text-align:center;">@o.Status</td>
+                            <td style="padding:0.35rem;border:1px solid #ddd;"></td>
                         </tr>
                         rowNum++;
                     }
@@ -234,26 +241,43 @@ else
 
 @code {
     [Parameter] public string IdsParam { get; set; } = "";
-    [SupplyParameterFromQuery(Name = "type")] public string? ReportTypeQuery { get; set; }
+    [SupplyParameterFromQuery(Name = "type")]   public string? ReportTypeQuery  { get; set; }
+    [SupplyParameterFromQuery(Name = "fields")] public string? FieldsQuery      { get; set; }
+    [SupplyParameterFromQuery(Name = "group")]  public string? GroupQuery       { get; set; }
 
     private AppDbContext _db = null!;
     private List<Order> orders = new();
     private CompanySetting? company;
     private bool isLoading = true;
     private string reportType = "production-line";
+    private HashSet<string> enabledFields = new();
+    private string groupBy = "none";
 
-    private string ReportTitle => reportType switch
+    private string ReportTitle => "گزارش دستور کار تولید";
+
+    // بررسی نمایش فیلد
+    private bool Show(string field) => !enabledFields.Any() || enabledFields.Contains(field);
+
+    // گروه‌بندی سفارشات
+    private IEnumerable<IGrouping<string, Order>> GetGroups()
     {
-        "daily"  => "گزارش تولید روزانه",
-        "weekly" => "گزارش تولید هفتگی",
-        "custom" => "گزارش تولید سفارشی",
-        _        => "گزارش خط تولید"
-    };
+        return groupBy switch
+        {
+            "priority" => orders.GroupBy(o => o.ProductionPriority),
+            "status"   => orders.GroupBy(o => o.Status),
+            "delivery" => orders.GroupBy(o => JalaliHelper.ToJalaliString(o.ExpectedDelivery.Date)),
+            _          => orders.GroupBy(_ => "همه سفارشات")
+        };
+    }
 
     protected override async Task OnInitializedAsync()
     {
         _db = await DbFactory.CreateDbContextAsync();
         reportType = ReportTypeQuery ?? "production-line";
+        groupBy = GroupQuery ?? "none";
+        // parse enabled fields
+        if (!string.IsNullOrEmpty(FieldsQuery))
+            enabledFields = FieldsQuery.Split(',', StringSplitOptions.RemoveEmptyEntries).ToHashSet();
         try
         {
             company = await _db.CompanySettings.AsNoTracking().FirstOrDefaultAsync();

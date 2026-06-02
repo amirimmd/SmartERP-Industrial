@@ -23,7 +23,8 @@
     <div style="display:flex;gap:0;margin-bottom:1.5rem;border-bottom:1px solid var(--border-color);">
         @foreach (var tab in new[] { "همه", "محصول نهایی", "مواد اولیه", "چهارچوب فلزی", "قیمت چهارچوب‌ها" })
         {
-            <button @onclick="() => { activeTab = tab; if(tab!=\"قیمت چهارچوب‌ها\") ApplyFilter(); else _ = LoadFramePrices(); }"
+            var t = tab;
+            <button @onclick="() => OnTabClick(t)"
                     style="padding:0.7rem 1.5rem;border:none;border-bottom:2px solid @(activeTab==tab ? "var(--primary-color)" : "transparent");background:transparent;color:@(activeTab==tab ? "var(--primary-color)" : "var(--text-muted)");cursor:pointer;font-family:var(--font-fa);font-weight:@(activeTab==tab ? "bold" : "normal");font-size:0.9rem;">
                 @tab
                 @if (tab != "قیمت چهارچوب‌ها")
@@ -416,6 +417,13 @@
         }
         catch (Exception ex) { framePriceSaveMsg = $"خطا: {ex.Message}"; }
         finally { isSavingPrices = false; StateHasChanged(); }
+    }
+
+    private async Task OnTabClick(string tab)
+    {
+        activeTab = tab;
+        if (tab == "قیمت چهارچوب‌ها") await LoadFramePrices();
+        else ApplyFilter();
     }
 
     private async Task LoadData()
