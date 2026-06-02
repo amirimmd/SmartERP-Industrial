@@ -3,17 +3,26 @@
 @using SmartERP.Infrastructure
 @using Microsoft.EntityFrameworkCore
 @using System.Text.Json
+@using SmartERP.Helpers
 @implements IDisposable
 @inject IDbContextFactory<AppDbContext> DbFactory
 @inject NavigationManager NavManager
 
 <div class="module-header">
-    <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 2rem;">
+    <div style="display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:2rem;">
         <div>
-            <h1 style="color: var(--primary-color); font-weight: 800; font-size: 1.8rem; margin-bottom: 0.5rem;">سفارشات تولید</h1>
-            <p style="color: var(--text-muted); margin: 0; font-size: 0.95rem;">پیگیری دستورات کار از دریافت سفارش تا آماده‌سازی ارسال</p>
+            <h1 style="color:var(--primary-color);font-weight:800;font-size:1.8rem;margin-bottom:0.4rem;">سفارشات تولید</h1>
+            <p style="color:var(--text-muted);margin:0;font-size:0.9rem;">گردش‌کار تولید — از ثبت تا آماده‌سازی تحویل</p>
         </div>
-        <button class="btn-primary" @onclick="OpenAddModal">+ ثبت دستور کار تولید</button>
+        <div style="display:flex;gap:0.75rem;">
+            @if (selectedIds.Any())
+            {
+                <button style="background:rgba(59,130,246,0.15);border:1px solid var(--accent-color);color:var(--accent-color);padding:0.5rem 1rem;border-radius:var(--radius-md);cursor:pointer;font-family:var(--font-fa);font-weight:bold;font-size:0.88rem;" @onclick="OpenBatchReport">
+                    🖨 گزارش دسته‌جمعی (@selectedIds.Count)
+                </button>
+            }
+            <button class="btn-primary" @onclick="OpenAddModal">+ ثبت دستور کار تولید</button>
+        </div>
     </div>
 
     @if (!string.IsNullOrEmpty(pageError))
@@ -21,111 +30,201 @@
         <div class="alert-error">@pageError</div>
     }
 
-    <!-- آمار سریع -->
-    @if (!isLoading && orders.Any())
+    <!-- ─── آمار سریع ─── -->
+    @if (!isLoading)
     {
-        <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; margin-bottom: 1.5rem;">
-            <div class="card" style="padding: 1rem; text-align: center;">
-                <div style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 0.3rem;">کل سفارشات</div>
-                <div class="industrial-num" style="font-size: 1.5rem; color: var(--primary-color);">@orders.Count</div>
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:1rem;margin-bottom:1.5rem;">
+            <div class="op-widget" @onclick='() => SetStatusFilter("همه")'>
+                <div class="op-widget-icon" style="background:rgba(245,158,11,0.12);">📋</div>
+                <div class="op-widget-body">
+                    <div class="op-widget-num" style="color:var(--primary-color);">@orders.Count</div>
+                    <div class="op-widget-label">کل سفارشات</div>
+                </div>
             </div>
-            <div class="card" style="padding: 1rem; text-align: center;">
-                <div style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 0.3rem;">در انتظار بررسی</div>
-                <div class="industrial-num" style="font-size: 1.5rem; color: var(--text-muted);">@orders.Count(o => o.Status == "در انتظار بررسی")</div>
+            <div class="op-widget" @onclick='() => SetStatusFilter("در انتظار بررسی")'>
+                <div class="op-widget-icon" style="background:rgba(161,161,170,0.1);">🕐</div>
+                <div class="op-widget-body">
+                    <div class="op-widget-num" style="color:var(--text-muted);">@orders.Count(o => o.GetWorkflowStage() == 1)</div>
+                    <div class="op-widget-label">ثبت‌شده</div>
+                </div>
             </div>
-            <div class="card" style="padding: 1rem; text-align: center;">
-                <div style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 0.3rem;">در حال ساخت</div>
-                <div class="industrial-num" style="font-size: 1.5rem; color: var(--primary-color);">@orders.Count(o => o.Status == "در حال ساخت")</div>
+            <div class="op-widget" @onclick='() => SetStatusFilter("در حال ساخت")'>
+                <div class="op-widget-icon" style="background:rgba(245,158,11,0.12);">⚙️</div>
+                <div class="op-widget-body">
+                    <div class="op-widget-num" style="color:var(--primary-color);">@orders.Count(o => o.GetWorkflowStage() == 2)</div>
+                    <div class="op-widget-label">در حال تولید</div>
+                </div>
             </div>
-            <div class="card" style="padding: 1rem; text-align: center;">
-                <div style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 0.3rem;">آماده تحویل</div>
-                <div class="industrial-num" style="font-size: 1.5rem; color: var(--success);">@orders.Count(o => o.Status == "آماده تحویل")</div>
+            <div class="op-widget" @onclick='() => SetStatusFilter("آماده تحویل")'>
+                <div class="op-widget-icon" style="background:rgba(16,185,129,0.12);">✅</div>
+                <div class="op-widget-body">
+                    <div class="op-widget-num" style="color:var(--success);">@orders.Count(o => o.GetWorkflowStage() == 3)</div>
+                    <div class="op-widget-label">آماده تحویل</div>
+                </div>
             </div>
         </div>
     }
 
-    <!-- فیلتر وضعیت -->
-    <div class="card" style="margin-bottom: 1.5rem; padding: 1rem 1.5rem; display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap;">
-        @foreach (var s in new[] { "همه", "در انتظار بررسی", "در حال ساخت", "آماده تحویل" })
-        {
-            <button @onclick="() => SetFilter(s)"
-                    style="padding: 0.4rem 1rem; border-radius: var(--radius-md); cursor: pointer; font-family: var(--font-fa); font-weight: bold; font-size: 0.85rem;
-                           background: @(filterStatus == s ? "var(--primary-color)" : "var(--bg-color)");
-                           color: @(filterStatus == s ? "#000" : "var(--text-muted)");
-                           border: 1px solid @(filterStatus == s ? "var(--primary-hover)" : "var(--border-color)");">
-                @s
+    <!-- ─── فیلترها ─── -->
+    <div class="card" style="margin-bottom:1.5rem;padding:1rem 1.5rem;">
+        <div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr auto;gap:0.75rem;align-items:flex-end;">
+            <div>
+                <label style="font-size:0.8rem;color:var(--text-muted);display:block;margin-bottom:0.3rem;">جستجو (مشتری، شماره سفارش)</label>
+                <input type="text" @bind="searchQuery" @bind:event="oninput" placeholder="جستجو..." class="input-field" style="margin-bottom:0;" />
+            </div>
+            <div>
+                <label style="font-size:0.8rem;color:var(--text-muted);display:block;margin-bottom:0.3rem;">وضعیت</label>
+                <select @bind="filterStatus" class="input-field" style="margin-bottom:0;">
+                    <option value="همه">همه</option>
+                    <option value="در انتظار بررسی">ثبت شده</option>
+                    <option value="در حال ساخت">در حال تولید</option>
+                    <option value="آماده تحویل">آماده تحویل</option>
+                </select>
+            </div>
+            <div>
+                <label style="font-size:0.8rem;color:var(--text-muted);display:block;margin-bottom:0.3rem;">اولویت</label>
+                <select @bind="filterPriority" class="input-field" style="margin-bottom:0;">
+                    <option value="">همه</option>
+                    <option value="فوری">فوری</option>
+                    <option value="عادی">عادی</option>
+                    <option value="کم‌اولویت">کم‌اولویت</option>
+                </select>
+            </div>
+            <div>
+                <label style="font-size:0.8rem;color:var(--text-muted);display:block;margin-bottom:0.3rem;">تحویل تا</label>
+                <input type="date" @bind="filterDeliveryTo" class="input-field" style="margin-bottom:0;font-family:var(--font-en);" />
+            </div>
+            <button style="padding:0.75rem 1rem;border-radius:var(--radius-md);cursor:pointer;font-family:var(--font-fa);font-size:0.85rem;background:var(--bg-color);color:var(--text-muted);border:1px solid var(--border-color);" @onclick="ClearFilters">پاک</button>
+        </div>
+        <div style="margin-top:0.5rem;display:flex;align-items:center;justify-content:space-between;">
+            <div style="font-size:0.8rem;color:var(--text-muted);">
+                <span class="industrial-num" style="color:var(--primary-color);">@filteredOrders.Count</span> سفارش
+                @if (selectedIds.Any()) { <span style="color:var(--accent-color);margin-right:1rem;"> — <span class="industrial-num">@selectedIds.Count</span> انتخاب‌شده</span> }
+            </div>
+            <button style="font-size:0.8rem;color:var(--text-muted);background:none;border:none;cursor:pointer;font-family:var(--font-fa);" @onclick="ToggleSelectAll">
+                @(selectedIds.Count == filteredOrders.Count && filteredOrders.Any() ? "لغو همه" : "انتخاب همه")
             </button>
-        }
-        <div style="margin-right: auto; color: var(--text-muted); font-size: 0.9rem;">
-            <span style="font-family: var(--font-en); color: var(--primary-color);">@filteredOrders.Count</span> سفارش
         </div>
     </div>
 
-    <!-- جدول سفارشات -->
-    <div class="card" style="padding: 0; overflow-x: auto;">
-        <table class="industrial-table" style="width: 100%; border-collapse: collapse;">
+    <!-- ─── جدول سفارشات ─── -->
+    <div class="card" style="padding:0;overflow-x:auto;">
+        <table class="industrial-table" style="width:100%;border-collapse:collapse;">
             <thead>
                 <tr>
-                    <th style="padding: 1rem 1.5rem; text-align: right;">شماره سفارش</th>
-                    <th style="padding: 1rem 1.5rem; text-align: right;">مشتری</th>
-                    <th style="padding: 1rem 1.5rem; text-align: right;">فاکتور مرجع</th>
-                    <th style="padding: 1rem 1.5rem; text-align: right;">وضعیت تولید</th>
-                    <th style="padding: 1rem 1.5rem; text-align: right;">تاریخ سفارش</th>
-                    <th style="padding: 1rem 1.5rem; text-align: right;">تحویل مورد انتظار</th>
-                    <th style="padding: 1rem 1.5rem; text-align: center;">عملیات</th>
+                    <th style="padding:0.75rem 1rem;width:40px;text-align:center;">
+                        <input type="checkbox" @onchange="ToggleSelectAll" checked="@(selectedIds.Count == filteredOrders.Count && filteredOrders.Any())" style="cursor:pointer;width:16px;height:16px;" />
+                    </th>
+                    <th style="padding:0.75rem 1.25rem;text-align:right;">سفارش / مشتری</th>
+                    <th style="padding:0.75rem 1.25rem;text-align:right;min-width:200px;">گردش‌کار تولید</th>
+                    <th style="padding:0.75rem 1.25rem;text-align:right;">اولویت</th>
+                    <th style="padding:0.75rem 1.25rem;text-align:right;">تاریخ تحویل</th>
+                    <th style="padding:0.75rem 1.25rem;text-align:center;">عملیات</th>
                 </tr>
             </thead>
             <tbody>
                 @if (isLoading)
                 {
-                    <tr><td colspan="7" style="padding: 3rem; text-align: center;"><div class="loader-pulse-ring" style="margin: 0 auto;"></div></td></tr>
+                    <tr><td colspan="6" style="padding:3rem;text-align:center;"><div class="loader-pulse-ring" style="margin:0 auto;"></div></td></tr>
                 }
                 else if (!filteredOrders.Any())
                 {
-                    <tr><td colspan="7" style="padding: 4rem; text-align: center; color: var(--text-muted);">سفارش فعالی یافت نشد.</td></tr>
+                    <tr><td colspan="6" style="padding:4rem;text-align:center;color:var(--text-muted);">سفارش فعالی یافت نشد.</td></tr>
                 }
                 else
                 {
                     @foreach (var o in filteredOrders)
                     {
+                        var isSelected = selectedIds.Contains(o.Id);
                         var isOverdue = o.ExpectedDelivery < DateTime.Now && o.Status != "آماده تحویل";
-                        <tr class="table-row-hover">
-                            <td style="padding: 1rem 1.5rem; font-family: var(--font-en); color: var(--primary-color); font-weight: bold;">@o.OrderNumber</td>
-                            <td style="padding: 1rem 1.5rem; font-weight: bold;">@o.CustomerName</td>
-                            <td style="padding: 1rem 1.5rem;">
+                        var pct = o.GetCompletionPercentage();
+                        var stage = o.GetWorkflowStage();
+                        var fillColor = stage == 3 ? "#10b981" : stage == 2 ? "#f59e0b" : "#71717a";
+                        <tr class="order-select-row @(isSelected ? "selected" : "")" style="border-bottom:1px solid var(--border-color);">
+                            <td style="padding:0.75rem 1rem;text-align:center;">
+                                <input type="checkbox" checked="@isSelected" @onchange="() => ToggleSelect(o.Id)" style="cursor:pointer;width:16px;height:16px;" />
+                            </td>
+                            <td style="padding:0.75rem 1.25rem;">
+                                <div class="industrial-num" style="color:var(--primary-color);font-weight:bold;font-size:0.9rem;">@o.OrderNumber</div>
+                                <div style="font-weight:700;color:var(--text-main);font-size:0.88rem;margin-top:0.15rem;">@o.CustomerName</div>
                                 @if (!string.IsNullOrEmpty(o.InvoiceNumber))
                                 {
-                                    <span style="font-family: var(--font-en); font-size: 0.85rem; color: var(--accent-color); background: rgba(59,130,246,0.1); padding: 0.2rem 0.5rem; border-radius: var(--radius-md); border: 1px solid rgba(59,130,246,0.2);">@o.InvoiceNumber</span>
+                                    <span style="font-family:var(--font-en);font-size:0.75rem;color:var(--accent-color);background:rgba(59,130,246,0.1);padding:0.1rem 0.4rem;border-radius:3px;border:1px solid rgba(59,130,246,0.2);">@o.InvoiceNumber</span>
+                                }
+                            </td>
+                            <td style="padding:0.75rem 1.25rem;">
+                                <!-- نوار پیشرفت -->
+                                <div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.4rem;">
+                                    <div class="progress-track" style="flex:1;">
+                                        <div class="progress-fill" style="width:@pct%;background:@fillColor;"></div>
+                                    </div>
+                                    <span class="industrial-num" style="font-size:0.78rem;color:@fillColor;font-weight:bold;width:30px;text-align:left;">@pct%</span>
+                                </div>
+                                <!-- بج وضعیت -->
+                                @if (stage == 1)
+                                {
+                                    <span class="badge badge-registered">🕐 ثبت شده</span>
+                                }
+                                else if (stage == 2)
+                                {
+                                    <span class="badge badge-inprod">⚙ در حال تولید</span>
                                 }
                                 else
                                 {
-                                    <span style="color: var(--text-muted); font-size: 0.85rem;">---</span>
+                                    <span class="badge badge-ready">✓ آماده تحویل</span>
                                 }
+                                <!-- چک‌لیست سریع -->
+                                <div style="margin-top:0.4rem;">
+                                    @foreach (var (label, done) in GetChecklist(o))
+                                    {
+                                        <div style="font-size:0.72rem;display:flex;align-items:center;gap:0.3rem;color:@(done ? "var(--success)" : "var(--border-color)");">
+                                            <span>@(done ? "✓" : "◻")</span>
+                                            <span>@label</span>
+                                        </div>
+                                    }
+                                </div>
                             </td>
-                            <td style="padding: 1rem 1.5rem;">
-                                @if (o.Status == "در انتظار بررسی")
+                            <td style="padding:0.75rem 1.25rem;">
+                                @if (o.ProductionPriority == "فوری")
                                 {
-                                    <span style="color: var(--text-muted); background: rgba(161,161,170,0.1); padding: 0.2rem 0.5rem; border-radius: var(--radius-md); font-size: 0.85rem; font-weight: bold;">@o.Status</span>
+                                    <span class="badge badge-urgent">🔴 فوری</span>
                                 }
-                                else if (o.Status == "در حال ساخت")
+                                else if (o.ProductionPriority == "کم‌اولویت")
                                 {
-                                    <span style="color: var(--primary-color); background: rgba(245,158,11,0.1); padding: 0.2rem 0.5rem; border-radius: var(--radius-md); font-size: 0.85rem; font-weight: bold;">@o.Status</span>
+                                    <span class="badge badge-low">⬇ کم‌اولویت</span>
                                 }
                                 else
                                 {
-                                    <span style="color: var(--success); background: rgba(16,185,129,0.1); padding: 0.2rem 0.5rem; border-radius: var(--radius-md); font-size: 0.85rem; font-weight: bold;">@o.Status</span>
+                                    <span class="badge badge-normal">▪ عادی</span>
                                 }
                             </td>
-                            <td style="padding: 1rem 1.5rem; font-family: var(--font-en); color: var(--text-muted); font-size: 0.9rem;">@o.OrderDate.ToString("yyyy/MM/dd")</td>
-                            <td style="padding: 1rem 1.5rem; font-family: var(--font-en); font-size: 0.9rem; color: @(isOverdue ? "var(--danger)" : "var(--text-muted)");">
-                                @o.ExpectedDelivery.ToString("yyyy/MM/dd")
-                                @if (isOverdue) { <span style="font-family: var(--font-fa); font-size: 0.75rem; margin-right: 0.3rem;">(تاخیر!)</span> }
+                            <td style="padding:0.75rem 1.25rem;">
+                                <div class="industrial-num" style="font-size:0.85rem;color:@(isOverdue ? "var(--danger)" : "var(--text-muted)");">
+                                    @JalaliHelper.ToJalaliString(o.ExpectedDelivery)
+                                </div>
+                                @if (isOverdue)
+                                {
+                                    <div style="font-size:0.72rem;color:var(--danger);margin-top:0.1rem;">⚠ تأخیر!</div>
+                                }
+                                @if (o.ProductionStartDate.HasValue)
+                                {
+                                    <div style="font-size:0.72rem;color:var(--text-muted);margin-top:0.1rem;">شروع: @JalaliHelper.ToJalaliString(o.ProductionStartDate.Value)</div>
+                                }
                             </td>
-                            <td style="padding: 1rem 1.5rem; text-align: center;">
-                                <div style="display: flex; gap: 0.4rem; justify-content: center; flex-wrap: wrap;">
-                                    <button style="background: var(--bg-color); border: 1px solid var(--border-color); color: var(--text-main); cursor: pointer; padding: 0.3rem 0.6rem; border-radius: var(--radius-md); font-weight: bold; font-size: 0.8rem;" @onclick="() => OpenEditModal(o)">ویرایش</button>
-                                    <button style="background: var(--primary-color); border: none; color: #000; cursor: pointer; padding: 0.3rem 0.6rem; border-radius: var(--radius-md); font-weight: bold; font-size: 0.8rem;" @onclick="() => PrintOrder(o.Id)">چاپ دستور کار</button>
-                                    <button style="background: none; border: none; color: var(--danger); cursor: pointer; padding: 0.3rem; font-size: 0.8rem;" @onclick="() => DeleteOrder(o.Id)">حذف</button>
+                            <td style="padding:0.75rem 1.25rem;text-align:center;">
+                                <div style="display:flex;gap:0.35rem;justify-content:center;flex-wrap:wrap;">
+                                    <!-- تغییر سریع وضعیت -->
+                                    @if (stage == 1)
+                                    {
+                                        <button style="background:rgba(245,158,11,0.15);border:1px solid rgba(245,158,11,0.4);color:var(--primary-color);cursor:pointer;padding:0.25rem 0.5rem;border-radius:var(--radius-md);font-size:0.75rem;font-family:var(--font-fa);font-weight:bold;" @onclick="() => QuickStatusChange(o, 2)">▶ شروع تولید</button>
+                                    }
+                                    else if (stage == 2)
+                                    {
+                                        <button style="background:rgba(16,185,129,0.15);border:1px solid rgba(16,185,129,0.4);color:var(--success);cursor:pointer;padding:0.25rem 0.5rem;border-radius:var(--radius-md);font-size:0.75rem;font-family:var(--font-fa);font-weight:bold;" @onclick="() => QuickStatusChange(o, 3)">✓ تکمیل تولید</button>
+                                    }
+                                    <button style="background:var(--bg-color);border:1px solid var(--border-color);color:var(--text-main);cursor:pointer;padding:0.25rem 0.5rem;border-radius:var(--radius-md);font-size:0.75rem;" @onclick="() => OpenEditModal(o)">ویرایش</button>
+                                    <button style="background:var(--primary-color);border:none;color:#000;cursor:pointer;padding:0.25rem 0.5rem;border-radius:var(--radius-md);font-size:0.75rem;font-weight:bold;" @onclick="() => PrintOrder(o.Id)">چاپ</button>
+                                    <button style="background:none;border:none;color:var(--danger);cursor:pointer;padding:0.25rem;font-size:0.8rem;" @onclick="() => DeleteOrder(o.Id)">✕</button>
                                 </div>
                             </td>
                         </tr>
@@ -136,14 +235,14 @@
     </div>
 </div>
 
-<!-- ================== Modal ثبت / ویرایش سفارش ================== -->
+<!-- ═══════════ Modal ثبت / ویرایش سفارش ═══════════ -->
 @if (isModalOpen)
 {
-    <div style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background-color: rgba(9,9,11,0.92); z-index: 200; display: flex; align-items: center; justify-content: center; padding: 1rem;" @onclick="CloseModal">
-        <div class="card" style="width: 100%; max-width: 720px; max-height: 92vh; overflow-y: auto; border-top: 3px solid var(--primary-color);" @onclick:stopPropagation="true">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; border-bottom: 1px solid var(--border-color); padding-bottom: 1rem;">
-                <h2 style="font-size: 1.2rem; color: var(--text-main); font-weight: 800;">@(editingOrder.Id == 0 ? "ثبت دستور کار تولید جدید" : "ویرایش سفارش تولید")</h2>
-                <button style="background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 1.5rem; padding: 0.2rem 0.5rem;" @onclick="CloseModal">✕</button>
+    <div style="position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(9,9,11,0.92);z-index:200;display:flex;align-items:center;justify-content:center;padding:1rem;" @onclick="CloseModal">
+        <div class="card" style="width:100%;max-width:760px;max-height:94vh;overflow-y:auto;border-top:3px solid var(--primary-color);" @onclick:stopPropagation="true">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.5rem;border-bottom:1px solid var(--border-color);padding-bottom:1rem;">
+                <h2 style="font-size:1.2rem;color:var(--text-main);font-weight:800;">@(editingOrder.Id == 0 ? "ثبت دستور کار تولید جدید" : "ویرایش سفارش تولید")</h2>
+                <button style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:1.5rem;" @onclick="CloseModal">✕</button>
             </div>
 
             @if (!string.IsNullOrEmpty(modalError))
@@ -151,78 +250,155 @@
                 <div class="alert-error">@modalError</div>
             }
 
-            <!-- بارگذاری از فاکتور (فقط برای سفارش جدید) -->
+            <!-- بارگذاری از فاکتور -->
             @if (editingOrder.Id == 0 && productionInvoices.Any())
             {
-                <div style="background: rgba(245,158,11,0.07); border: 1px solid rgba(245,158,11,0.3); border-radius: var(--radius-md); padding: 1rem; margin-bottom: 1.25rem;">
-                    <label style="display: block; margin-bottom: 0.4rem; color: var(--primary-color); font-size: 0.85rem; font-weight: bold;">⚡ بارگذاری سریع از فاکتور (اختیاری)</label>
-                    <select @onchange="LoadFromInvoice" class="input-field" style="margin-bottom: 0; border-color: var(--primary-color);">
+                <div style="background:rgba(245,158,11,0.07);border:1px solid rgba(245,158,11,0.3);border-radius:var(--radius-md);padding:1rem;margin-bottom:1.25rem;">
+                    <label style="display:block;margin-bottom:0.4rem;color:var(--primary-color);font-size:0.85rem;font-weight:bold;">⚡ بارگذاری سریع از فاکتور</label>
+                    <select @onchange="LoadFromInvoice" class="input-field" style="margin-bottom:0;border-color:var(--primary-color);">
                         <option value="0">-- انتخاب از فاکتورهای نیازمند تولید --</option>
                         @foreach (var inv in productionInvoices)
                         {
-                            <option value="@inv.Id">@inv.InvoiceNumber — @inv.CustomerName (@inv.InvoiceDate.ToString("yyyy/MM/dd"))</option>
+                            <option value="@inv.Id">@inv.InvoiceNumber — @inv.CustomerName</option>
                         }
                     </select>
-                    <p style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.4rem; margin-bottom: 0;">اطلاعات فاکتور انتخاب‌شده به صورت خودکار در فرم زیر پر می‌شود.</p>
-                </div>
-            }
-            else if (editingOrder.Id == 0 && !productionInvoices.Any())
-            {
-                <div style="background: var(--bg-color); border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 0.75rem 1rem; margin-bottom: 1.25rem; font-size: 0.82rem; color: var(--text-muted);">
-                    هیچ فاکتوری با علامت «نیاز به تولید» یافت نشد. می‌توانید سفارش را به صورت دستی ثبت کنید.
                 </div>
             }
 
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
+            <!-- اطلاعات اصلی -->
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1rem;">
                 <div>
-                    <label style="display: block; margin-bottom: 0.4rem; color: var(--text-muted); font-size: 0.85rem;">شماره سفارش</label>
-                    <input type="text" @bind="editingOrder.OrderNumber" class="input-field" style="margin-bottom: 0; font-family: var(--font-en);" readonly="@(editingOrder.Id != 0)" />
+                    <label style="display:block;margin-bottom:0.4rem;color:var(--text-muted);font-size:0.85rem;">شماره سفارش</label>
+                    <input type="text" @bind="editingOrder.OrderNumber" class="input-field" style="margin-bottom:0;font-family:var(--font-en);" readonly="@(editingOrder.Id != 0)" />
                 </div>
                 <div>
-                    <label style="display: block; margin-bottom: 0.4rem; color: var(--text-muted); font-size: 0.85rem;">شماره فاکتور مرجع</label>
-                    <input type="text" @bind="editingOrder.InvoiceNumber" class="input-field" style="margin-bottom: 0; font-family: var(--font-en); color: var(--accent-color);" placeholder="اختیاری" />
+                    <label style="display:block;margin-bottom:0.4rem;color:var(--text-muted);font-size:0.85rem;">شماره فاکتور مرجع</label>
+                    <input type="text" @bind="editingOrder.InvoiceNumber" class="input-field" style="margin-bottom:0;font-family:var(--font-en);color:var(--accent-color);" placeholder="اختیاری" />
                 </div>
             </div>
 
-            <div style="margin-bottom: 1rem;">
-                <label style="display: block; margin-bottom: 0.4rem; color: var(--text-muted); font-size: 0.85rem;">نام مشتری / پروژه *</label>
-                <input type="text" @bind="editingOrder.CustomerName" class="input-field" style="margin-bottom: 0;" />
+            <div style="margin-bottom:1rem;">
+                <label style="display:block;margin-bottom:0.4rem;color:var(--text-muted);font-size:0.85rem;">نام مشتری / پروژه *</label>
+                <input type="text" @bind="editingOrder.CustomerName" class="input-field" style="margin-bottom:0;" />
             </div>
 
-            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:1rem;margin-bottom:1rem;">
                 <div>
-                    <label style="display: block; margin-bottom: 0.4rem; color: var(--text-muted); font-size: 0.85rem;">تاریخ تحویل مورد انتظار</label>
-                    <input type="date" @bind="editingOrder.ExpectedDelivery" class="input-field" style="margin-bottom: 0; font-family: var(--font-en);" />
-                </div>
-                <div>
-                    <label style="display: block; margin-bottom: 0.4rem; color: var(--text-muted); font-size: 0.85rem;">وضعیت تولید</label>
-                    <select @bind="editingOrder.Status" class="input-field" style="margin-bottom: 0;">
-                        <option value="در انتظار بررسی">در انتظار بررسی</option>
-                        <option value="در حال ساخت">در حال ساخت</option>
-                        <option value="آماده تحویل">آماده تحویل</option>
+                    <label style="display:block;margin-bottom:0.4rem;color:var(--text-muted);font-size:0.85rem;">وضعیت تولید</label>
+                    <select @bind="editingOrder.Status" class="input-field" style="margin-bottom:0;border-color:var(--primary-color);">
+                        <option value="در انتظار بررسی">ثبت شده (۰٪)</option>
+                        <option value="در حال ساخت">در حال تولید (۵۰٪)</option>
+                        <option value="آماده تحویل">آماده تحویل (۱۰۰٪)</option>
                     </select>
                 </div>
                 <div>
-                    <label style="display: block; margin-bottom: 0.4rem; color: var(--text-muted); font-size: 0.85rem;">مبلغ تقریبی (ریال)</label>
-                    <input type="number" @bind="editingOrder.TotalAmount" class="input-field" style="margin-bottom: 0; font-family: var(--font-en);" min="0" />
+                    <label style="display:block;margin-bottom:0.4rem;color:var(--text-muted);font-size:0.85rem;">اولویت تولید</label>
+                    <select @bind="editingOrder.ProductionPriority" class="input-field" style="margin-bottom:0;">
+                        <option value="فوری">🔴 فوری</option>
+                        <option value="عادی">▪ عادی</option>
+                        <option value="کم‌اولویت">⬇ کم‌اولویت</option>
+                    </select>
+                </div>
+                <div>
+                    <label style="display:block;margin-bottom:0.4rem;color:var(--text-muted);font-size:0.85rem;">تاریخ تحویل مورد انتظار</label>
+                    <input type="date" @bind="editingOrder.ExpectedDelivery" class="input-field" style="margin-bottom:0;font-family:var(--font-en);" />
                 </div>
             </div>
 
-            <div style="margin-bottom: 1rem;">
-                <label style="display: block; margin-bottom: 0.4rem; color: var(--text-muted); font-size: 0.85rem;">مشخصات فنی و شرح اقلام (برای چاپ دستور کار)</label>
-                <textarea @bind="editingOrder.TechnicalSpecs" class="input-field" style="min-height: 110px; resize: vertical; margin-bottom: 0;" placeholder="مثال: 10 عدد درب ضد سرقت مدل ترک، ابعاد 210×90، رنگ مشکی مات، قفل سه‌لنگه..."></textarea>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1rem;">
+                <div>
+                    <label style="display:block;margin-bottom:0.4rem;color:var(--text-muted);font-size:0.85rem;">تاریخ شروع تولید</label>
+                    <input type="date" @bind="editingOrder.ProductionStartDate" class="input-field" style="margin-bottom:0;font-family:var(--font-en);" />
+                </div>
+                <div>
+                    <label style="display:block;margin-bottom:0.4rem;color:var(--text-muted);font-size:0.85rem;">مبلغ تقریبی (ریال)</label>
+                    <input type="number" @bind="editingOrder.TotalAmount" class="input-field" style="margin-bottom:0;font-family:var(--font-en);" min="0" />
+                </div>
             </div>
 
-            <div style="margin-bottom: 1.5rem;">
-                <label style="display: block; margin-bottom: 0.4rem; color: var(--text-muted); font-size: 0.85rem;">یادداشت مدیر تولید</label>
-                <textarea @bind="editingOrder.ProductionManagerNotes" class="input-field" style="min-height: 65px; resize: vertical; margin-bottom: 0;" placeholder="دستورالعمل‌ها و توضیحات داخلی برای تیم تولید..."></textarea>
+            <!-- نوار پیشرفت پیش‌نمایش -->
+            <div style="background:var(--bg-color);border:1px solid var(--border-color);border-radius:var(--radius-md);padding:1rem;margin-bottom:1rem;">
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.6rem;">
+                    <span style="font-size:0.82rem;color:var(--text-muted);">پیشرفت تولید</span>
+                    <span class="industrial-num" style="color:var(--primary-color);font-weight:bold;">@editingOrder.GetCompletionPercentage()%</span>
+                </div>
+                <div class="progress-track">
+                    <div class="progress-fill" style="width:@editingOrder.GetCompletionPercentage()%;"></div>
+                </div>
+                <div style="display:flex;justify-content:space-between;margin-top:0.5rem;">
+                    @foreach (var (label, stage, pct) in new[]{("ثبت شده",1,0),("در حال تولید",2,50),("آماده تحویل",3,100)})
+                    {
+                        var active = editingOrder.GetWorkflowStage() == stage;
+                        <span style="font-size:0.72rem;color:@(active ? "var(--primary-color)" : "var(--text-muted)");font-weight:@(active ? "bold" : "normal");">@label</span>
+                    }
+                </div>
             </div>
 
-            <div style="display: flex; gap: 1rem;">
-                <button class="btn-primary" style="flex: 1;" @onclick="SaveOrder" disabled="@isSaving">
-                    @if (isSaving) { <span>در حال ذخیره...</span> } else { <span>ثبت دستور کار</span> }
+            <div style="margin-bottom:1rem;">
+                <label style="display:block;margin-bottom:0.4rem;color:var(--text-muted);font-size:0.85rem;">مشخصات فنی و شرح اقلام</label>
+                <textarea @bind="editingOrder.TechnicalSpecs" class="input-field" style="min-height:100px;resize:vertical;margin-bottom:0;" placeholder="مثال: ۱۰ عدد درب ضد سرقت مدل ترک، ابعاد ۲۱۰×۹۰، رنگ مشکی مات..."></textarea>
+            </div>
+
+            <div style="margin-bottom:1.5rem;">
+                <label style="display:block;margin-bottom:0.4rem;color:var(--text-muted);font-size:0.85rem;">یادداشت مدیر تولید</label>
+                <textarea @bind="editingOrder.ProductionManagerNotes" class="input-field" style="min-height:65px;resize:vertical;margin-bottom:0;" placeholder="دستورالعمل‌ها و توضیحات داخلی..."></textarea>
+            </div>
+
+            <div style="display:flex;gap:1rem;">
+                <button class="btn-primary" style="flex:1;" @onclick="SaveOrder" disabled="@isSaving">
+                    @if (isSaving) { <span>در حال ذخیره...</span> } else { <span>ذخیره سفارش</span> }
                 </button>
-                <button style="flex: 1; background: transparent; border: 1px solid var(--border-color); color: var(--text-main); border-radius: var(--radius-md); cursor: pointer; font-weight: bold; padding: 0.6rem;" @onclick="CloseModal">انصراف</button>
+                <button style="flex:1;background:transparent;border:1px solid var(--border-color);color:var(--text-main);border-radius:var(--radius-md);cursor:pointer;font-weight:bold;padding:0.6rem;font-family:var(--font-fa);" @onclick="CloseModal">انصراف</button>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- ═══════════ Modal گزارش دسته‌جمعی ═══════════ -->
+@if (isBatchReportOpen)
+{
+    <div style="position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(9,9,11,0.95);z-index:300;display:flex;align-items:center;justify-content:center;padding:1rem;">
+        <div class="card" style="width:100%;max-width:600px;border-top:3px solid var(--accent-color);">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.5rem;border-bottom:1px solid var(--border-color);padding-bottom:1rem;">
+                <h2 style="font-size:1.15rem;color:var(--text-main);font-weight:800;">گزارش دسته‌جمعی تولید</h2>
+                <button style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:1.5rem;" @onclick="() => isBatchReportOpen = false">✕</button>
+            </div>
+
+            <div style="background:var(--bg-color);border:1px solid var(--border-color);border-radius:var(--radius-md);padding:1rem;margin-bottom:1.25rem;">
+                <p style="font-size:0.8rem;color:var(--text-muted);margin-bottom:0.5rem;font-weight:bold;">@selectedIds.Count سفارش انتخاب‌شده</p>
+                @foreach (var o in orders.Where(x => selectedIds.Contains(x.Id)).Take(5))
+                {
+                    <div style="font-size:0.82rem;color:var(--text-main);padding:0.2rem 0;border-bottom:1px dashed var(--border-color);">
+                        <span class="industrial-num" style="color:var(--primary-color);">@o.OrderNumber</span>
+                        — @o.CustomerName
+                        <span class="badge @(o.GetWorkflowStage()==3 ? "badge-ready" : o.GetWorkflowStage()==2 ? "badge-inprod" : "badge-registered")" style="margin-right:0.5rem;font-size:0.7rem;">@o.Status</span>
+                    </div>
+                }
+                @if (selectedIds.Count > 5) { <div style="font-size:0.78rem;color:var(--text-muted);padding-top:0.3rem;">و @(selectedIds.Count - 5) سفارش دیگر...</div> }
+            </div>
+
+            <div style="margin-bottom:1.25rem;">
+                <label style="display:block;margin-bottom:0.5rem;color:var(--text-muted);font-size:0.85rem;font-weight:bold;">نوع گزارش</label>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.6rem;">
+                    @foreach (var (val, label, desc) in new[]{
+                        ("production-line","گزارش خط تولید","برای کارگران کارخانه"),
+                        ("daily","گزارش روزانه","لیست تولید امروز"),
+                        ("weekly","گزارش هفتگی","برنامه‌ریزی هفتگی"),
+                        ("custom","بازه دلخواه","گزارش بازه سفارشی")
+                    })
+                    {
+                        <div @onclick="() => batchReportType = val"
+                             style="padding:0.75rem 1rem;border-radius:var(--radius-md);cursor:pointer;border:1px solid @(batchReportType==val ? "var(--accent-color)" : "var(--border-color)");background:@(batchReportType==val ? "rgba(59,130,246,0.1)" : "var(--bg-color)");">
+                            <div style="font-size:0.85rem;font-weight:bold;color:@(batchReportType==val ? "var(--accent-color)" : "var(--text-main)");">@label</div>
+                            <div style="font-size:0.75rem;color:var(--text-muted);">@desc</div>
+                        </div>
+                    }
+                </div>
+            </div>
+
+            <div style="display:flex;gap:0.75rem;">
+                <button @onclick="PrintBatchReport" class="btn-primary" style="flex:1;">🖨 چاپ / PDF</button>
+                <button @onclick="() => isBatchReportOpen = false" style="flex:1;background:transparent;border:1px solid var(--border-color);color:var(--text-main);border-radius:var(--radius-md);cursor:pointer;font-weight:bold;padding:0.6rem;font-family:var(--font-fa);">انصراف</button>
             </div>
         </div>
     </div>
@@ -233,12 +409,18 @@
     private List<Order> orders = new();
     private List<Order> filteredOrders = new();
     private List<Invoice> productionInvoices = new();
+    private HashSet<int> selectedIds = new();
     private bool isLoading = true;
     private bool isSaving = false;
+    private bool isModalOpen = false;
+    private bool isBatchReportOpen = false;
     private string filterStatus = "همه";
+    private string filterPriority = "";
+    private DateTime? filterDeliveryTo = null;
+    private string searchQuery = "";
     private string pageError = "";
     private string modalError = "";
-    private bool isModalOpen = false;
+    private string batchReportType = "production-line";
     private Order editingOrder = new();
 
     protected override async Task OnInitializedAsync()
@@ -250,8 +432,7 @@
 
     private async Task LoadOrders()
     {
-        isLoading = true;
-        pageError = "";
+        isLoading = true; pageError = "";
         try
         {
             orders = await _db.Orders.AsNoTracking().OrderByDescending(o => o.Id).ToListAsync();
@@ -263,18 +444,92 @@
 
     private async Task LoadProductionInvoices()
     {
-        try
-        {
-            productionInvoices = await _db.Invoices.AsNoTracking()
-                .Where(i => i.NeedsProduction)
-                .OrderByDescending(i => i.Id)
-                .ToListAsync();
-        }
-        catch { productionInvoices = new List<Invoice>(); }
+        try { productionInvoices = await _db.Invoices.AsNoTracking().Where(i => i.NeedsProduction).OrderByDescending(i => i.Id).ToListAsync(); }
+        catch { productionInvoices = new(); }
     }
 
-    private void SetFilter(string status) { filterStatus = status; ApplyFilter(); }
-    private void ApplyFilter() { filteredOrders = filterStatus == "همه" ? orders.ToList() : orders.Where(o => o.Status == filterStatus).ToList(); }
+    private void SetStatusFilter(string s)
+    {
+        filterStatus = s == "همه" ? "همه" : s;
+        ApplyFilter();
+    }
+
+    private void ApplyFilter()
+    {
+        var q = orders.AsEnumerable();
+        if (filterStatus != "همه") q = q.Where(o => o.Status == filterStatus);
+        if (!string.IsNullOrEmpty(filterPriority)) q = q.Where(o => o.ProductionPriority == filterPriority);
+        if (filterDeliveryTo.HasValue) q = q.Where(o => o.ExpectedDelivery.Date <= filterDeliveryTo.Value.Date);
+        if (!string.IsNullOrWhiteSpace(searchQuery))
+        {
+            var s = searchQuery.ToLower();
+            q = q.Where(o => o.CustomerName.ToLower().Contains(s) || o.OrderNumber.ToLower().Contains(s) || o.InvoiceNumber.ToLower().Contains(s));
+        }
+        filteredOrders = q.ToList();
+    }
+
+    private void ClearFilters() { filterStatus = "همه"; filterPriority = ""; filterDeliveryTo = null; searchQuery = ""; ApplyFilter(); StateHasChanged(); }
+
+    private void ToggleSelect(int id) { if (!selectedIds.Remove(id)) selectedIds.Add(id); StateHasChanged(); }
+    private void ToggleSelectAll()
+    {
+        if (selectedIds.Count == filteredOrders.Count && filteredOrders.Any())
+            selectedIds.Clear();
+        else
+            selectedIds = filteredOrders.Select(o => o.Id).ToHashSet();
+        StateHasChanged();
+    }
+
+    private void OpenBatchReport() { if (selectedIds.Any()) isBatchReportOpen = true; }
+
+    private void PrintBatchReport()
+    {
+        var ids = string.Join(",", selectedIds);
+        NavManager.NavigateTo($"/print/batch-orders/{ids}?type={batchReportType}");
+    }
+
+    // چک‌لیست مراحل بر اساس وضعیت
+    private IEnumerable<(string Label, bool Done)> GetChecklist(Order o)
+    {
+        var stage = o.GetWorkflowStage();
+        yield return ("ثبت اولیه سفارش", true);
+        yield return ("تأیید مشخصات فنی", stage >= 2);
+        yield return ("شروع تولید", stage >= 2);
+        yield return ("تکمیل تولید", stage >= 3);
+        yield return ("کنترل کیفیت و تحویل", stage >= 3);
+    }
+
+    private async Task QuickStatusChange(Order o, int targetStage)
+    {
+        var newStatus = targetStage switch { 2 => "در حال ساخت", 3 => "آماده تحویل", _ => "در انتظار بررسی" };
+        try
+        {
+            await using var db = await DbFactory.CreateDbContextAsync();
+            var entity = await db.Orders.FindAsync(o.Id);
+            if (entity == null) return;
+            entity.Status = newStatus;
+            if (targetStage == 2 && !entity.ProductionStartDate.HasValue)
+                entity.ProductionStartDate = DateTime.Now;
+            if (targetStage == 3)
+                entity.CompletedAt = DateTime.Now;
+
+            await db.SaveChangesAsync();
+
+            // همگام‌سازی با فاکتور مرجع
+            if (targetStage == 3 && entity.InvoiceId.HasValue)
+            {
+                var inv = await db.Invoices.FindAsync(entity.InvoiceId.Value);
+                if (inv != null && inv.CurrentStep < 3)
+                {
+                    inv.CurrentStep = 3;
+                    inv.Status = "آماده ارسال";
+                    await db.SaveChangesAsync();
+                }
+            }
+            await LoadOrders();
+        }
+        catch (Exception ex) { pageError = ex.Message; }
+    }
 
     private async Task OpenAddModal()
     {
@@ -284,10 +539,10 @@
             OrderNumber = $"ORD-{count:D5}",
             OrderDate = DateTime.Now,
             ExpectedDelivery = DateTime.Now.AddDays(7),
-            Status = "در انتظار بررسی"
+            Status = "در انتظار بررسی",
+            ProductionPriority = "عادی"
         };
         modalError = "";
-        // بروزرسانی لیست فاکتورهای نیازمند تولید
         await LoadProductionInvoices();
         isModalOpen = true;
         await InvokeAsync(StateHasChanged);
@@ -297,21 +552,15 @@
     {
         editingOrder = new Order
         {
-            Id = o.Id,
-            OrderNumber = o.OrderNumber,
-            InvoiceId = o.InvoiceId,
-            InvoiceNumber = o.InvoiceNumber,
-            CustomerName = o.CustomerName,
-            OrderDate = o.OrderDate,
-            ExpectedDelivery = o.ExpectedDelivery,
-            Status = o.Status,
-            ItemsJson = o.ItemsJson,
-            TotalAmount = o.TotalAmount,
-            TechnicalSpecs = o.TechnicalSpecs,
-            ProductionManagerNotes = o.ProductionManagerNotes
+            Id = o.Id, OrderNumber = o.OrderNumber, InvoiceId = o.InvoiceId,
+            InvoiceNumber = o.InvoiceNumber, CustomerName = o.CustomerName,
+            OrderDate = o.OrderDate, ExpectedDelivery = o.ExpectedDelivery,
+            Status = o.Status, ItemsJson = o.ItemsJson, TotalAmount = o.TotalAmount,
+            TechnicalSpecs = o.TechnicalSpecs, ProductionManagerNotes = o.ProductionManagerNotes,
+            ProductionPriority = o.ProductionPriority, ProductionStartDate = o.ProductionStartDate,
+            CompletedAt = o.CompletedAt
         };
-        modalError = "";
-        isModalOpen = true;
+        modalError = ""; isModalOpen = true;
         await InvokeAsync(StateHasChanged);
     }
 
@@ -322,7 +571,6 @@
         if (!int.TryParse(e.Value?.ToString(), out int invId) || invId == 0) return;
         var inv = productionInvoices.FirstOrDefault(i => i.Id == invId);
         if (inv == null) return;
-
         editingOrder.CustomerName = inv.CustomerName;
         editingOrder.InvoiceId = inv.Id;
         editingOrder.InvoiceNumber = inv.InvoiceNumber;
@@ -330,6 +578,7 @@
         editingOrder.ItemsJson = inv.ItemsJson;
         editingOrder.TechnicalSpecs = inv.ProductionNotes;
         editingOrder.TotalAmount = inv.FinalAmount;
+        editingOrder.ProductionPriority = inv.IsUrgentProduction ? "فوری" : "عادی";
         StateHasChanged();
     }
 
@@ -339,19 +588,19 @@
         isSaving = true;
         try
         {
-            await using var saveDb = await DbFactory.CreateDbContextAsync();
+            await using var db = await DbFactory.CreateDbContextAsync();
             if (editingOrder.Id == 0)
             {
-                // شماره سفارش را با تعداد واقعی دیتابیس می‌سازیم
-                var count = await saveDb.Orders.CountAsync() + 1;
+                var count = await db.Orders.CountAsync() + 1;
                 editingOrder.OrderNumber = $"ORD-{count:D5}";
-                saveDb.Orders.Add(editingOrder);
+                editingOrder.OrderDate = DateTime.Now;
+                db.Orders.Add(editingOrder);
             }
             else
             {
-                saveDb.Orders.Update(editingOrder);
+                db.Orders.Update(editingOrder);
             }
-            await saveDb.SaveChangesAsync();
+            await db.SaveChangesAsync();
             await LoadOrders();
             CloseModal();
         }
@@ -363,9 +612,9 @@
     {
         try
         {
-            await using var deleteDb = await DbFactory.CreateDbContextAsync();
-            var o = await deleteDb.Orders.FindAsync(id);
-            if (o != null) { deleteDb.Orders.Remove(o); await deleteDb.SaveChangesAsync(); }
+            await using var db = await DbFactory.CreateDbContextAsync();
+            var o = await db.Orders.FindAsync(id);
+            if (o != null) { db.Orders.Remove(o); await db.SaveChangesAsync(); }
             await LoadOrders();
         }
         catch (Exception ex) { pageError = ex.Message; }

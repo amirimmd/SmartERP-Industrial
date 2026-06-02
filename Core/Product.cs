@@ -48,5 +48,15 @@ namespace SmartERP.Core
 
         public bool IsActive { get; set; } = true;
         public DateTime CreatedAt { get; set; } = DateTime.Now;
+
+        // ═══ مشخصات چهارچوب فلزی ═══
+        public bool IsFrameProduct { get; set; } = false;
+        // چهارچوب فرانسوی | چهارچوب مکزیکی
+        public string FrameType { get; set; } = "چهارچوب فرانسوی";
+        // راست‌باز | چپ‌باز
+        public string OpeningDirection { get; set; } = "راست‌باز";
+
+        // نرخ مالیات ویژه این محصول (منفی یعنی از تنظیمات شرکت استفاده شود)
+        public decimal TaxRate { get; set; } = -1m;
     }
 }

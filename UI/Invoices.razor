@@ -269,13 +269,111 @@
                     </table>
                 }
 
+                <!-- ═══ بخش سفارش چهارچوب فلزی ═══ -->
+                <div class="frame-section">
+                    <div class="frame-section-header">
+                        <div>
+                            <span style="font-size:0.88rem;font-weight:bold;color:var(--primary-color);">🔧 سفارش چهارچوب فلزی</span>
+                            <span style="font-size:0.75rem;color:var(--text-muted);margin-right:0.5rem;">اختیاری</span>
+                        </div>
+                        <label class="toggle-switch">
+                            <input type="checkbox" @bind="editingInvoice.FrameOrderEnabled" />
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>
+                    @if (editingInvoice.FrameOrderEnabled)
+                    {
+                        <!-- فرم افزودن چهارچوب -->
+                        <div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr 1fr auto;gap:0.5rem;align-items:flex-end;margin-bottom:0.75rem;">
+                            <div>
+                                <label style="font-size:0.75rem;color:var(--text-muted);display:block;margin-bottom:0.25rem;">نام چهارچوب</label>
+                                <input type="text" @bind="frameItemForm.Name" class="input-field" style="margin-bottom:0;font-size:0.85rem;" placeholder="مثال: چهارچوب درب اتاق خواب" />
+                            </div>
+                            <div>
+                                <label style="font-size:0.75rem;color:var(--text-muted);display:block;margin-bottom:0.25rem;">نوع</label>
+                                <select @bind="frameItemForm.FrameType" class="input-field" style="margin-bottom:0;font-size:0.85rem;">
+                                    <option>چهارچوب فرانسوی</option>
+                                    <option>چهارچوب مکزیکی</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label style="font-size:0.75rem;color:var(--text-muted);display:block;margin-bottom:0.25rem;">جهت باز شدن</label>
+                                <select @bind="frameItemForm.OpeningDirection" class="input-field" style="margin-bottom:0;font-size:0.85rem;">
+                                    <option>راست‌باز</option>
+                                    <option>چپ‌باز</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label style="font-size:0.75rem;color:var(--text-muted);display:block;margin-bottom:0.25rem;">قیمت (ریال)</label>
+                                <input type="number" @bind="frameItemForm.UnitPrice" class="input-field" style="margin-bottom:0;font-family:var(--font-en);font-size:0.85rem;" min="0" />
+                            </div>
+                            <div>
+                                <label style="font-size:0.75rem;color:var(--text-muted);display:block;margin-bottom:0.25rem;">تعداد</label>
+                                <div style="display:flex;border:1px solid var(--border-color);border-radius:var(--radius-md);overflow:hidden;">
+                                    <button @onclick="() => { if(frameItemForm.Quantity>1) frameItemForm.Quantity--; }" style="background:var(--surface-color);border:none;color:var(--text-muted);padding:0.4rem 0.6rem;cursor:pointer;font-size:1rem;font-weight:bold;">−</button>
+                                    <span class="industrial-num" style="flex:1;display:flex;align-items:center;justify-content:center;background:var(--bg-color);font-size:0.9rem;min-width:30px;">@frameItemForm.Quantity</span>
+                                    <button @onclick="() => frameItemForm.Quantity++" style="background:var(--surface-color);border:none;color:var(--text-muted);padding:0.4rem 0.6rem;cursor:pointer;font-size:1rem;font-weight:bold;">+</button>
+                                </div>
+                            </div>
+                            <button @onclick="AddFrameItem" class="btn-primary" style="padding:0.5rem 0.75rem;font-size:0.82rem;white-space:nowrap;">+ افزودن</button>
+                        </div>
+                        <!-- لیست چهارچوب‌ها -->
+                        @if (frameItems.Any())
+                        {
+                            <table style="width:100%;border-collapse:collapse;font-size:0.82rem;margin-bottom:0.5rem;">
+                                <thead>
+                                    <tr style="color:var(--text-muted);border-bottom:1px solid var(--border-color);">
+                                        <th style="text-align:right;padding:0.35rem;">نام</th>
+                                        <th style="text-align:center;padding:0.35rem;">نوع</th>
+                                        <th style="text-align:center;padding:0.35rem;">جهت باز</th>
+                                        <th style="text-align:center;padding:0.35rem;">تعداد</th>
+                                        <th style="text-align:right;padding:0.35rem;">قیمت واحد (ریال)</th>
+                                        <th style="text-align:right;padding:0.35rem;">جمع (ریال)</th>
+                                        <th style="width:30px;"></th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var fi in frameItems)
+                                    {
+                                        <tr style="border-bottom:1px dashed var(--border-color);">
+                                            <td style="padding:0.35rem;font-weight:600;">@fi.Name</td>
+                                            <td style="text-align:center;padding:0.35rem;color:var(--text-muted);">@fi.FrameType</td>
+                                            <td style="text-align:center;padding:0.35rem;color:var(--text-muted);">@fi.OpeningDirection</td>
+                                            <td style="text-align:center;padding:0.35rem;" class="industrial-num">@fi.Quantity</td>
+                                            <td style="text-align:right;padding:0.35rem;color:var(--text-muted);" class="industrial-num">@fi.UnitPrice.ToString("N0")</td>
+                                            <td style="text-align:right;padding:0.35rem;color:var(--primary-color);font-weight:bold;" class="industrial-num">@((fi.UnitPrice * fi.Quantity).ToString("N0"))</td>
+                                            <td style="text-align:center;padding:0.35rem;"><button @onclick="() => frameItems.Remove(fi)" style="background:none;border:none;color:var(--danger);cursor:pointer;">✕</button></td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                            <div style="text-align:left;font-size:0.82rem;color:var(--text-muted);">
+                                جمع چهارچوب: <span class="industrial-num" style="color:var(--success);">@frameItems.Sum(f => f.UnitPrice * f.Quantity).ToString("N0")</span> ریال
+                            </div>
+                        }
+                        else
+                        {
+                            <div style="text-align:center;color:var(--text-muted);font-size:0.82rem;padding:0.75rem;">هنوز چهارچوبی اضافه نشده است.</div>
+                        }
+                    }
+                </div>
+
                 <!-- مالی -->
                 <div style="background:var(--bg-color);border:1px solid var(--border-color);border-radius:var(--radius-md);padding:1.25rem;margin-bottom:1rem;">
                     <p style="font-size:0.8rem;color:var(--text-muted);margin-bottom:1rem;font-weight:bold;">محاسبات مالی و تسویه:</p>
-                    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:1rem;margin-bottom:1rem;">
+                    <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:1rem;margin-bottom:1rem;">
                         <div><label style="display:block;margin-bottom:0.3rem;color:var(--text-muted);font-size:0.8rem;">جمع کل (ریال)</label><input readonly value="@editingInvoice.TotalAmount.ToString("N0")" class="input-field" style="margin-bottom:0;font-family:var(--font-en);background:var(--surface-color);" /></div>
                         <div><label style="display:block;margin-bottom:0.3rem;color:var(--text-muted);font-size:0.8rem;">تخفیف (ریال)</label><input type="number" value="@editingInvoice.Discount" @oninput="OnDiscountInput" class="input-field" style="margin-bottom:0;font-family:var(--font-en);" min="0" /></div>
-                        <div><label style="display:block;margin-bottom:0.3rem;color:var(--text-muted);font-size:0.8rem;">مالیات @((taxRate*100).ToString("0"))%</label><input readonly value="@editingInvoice.Tax.ToString("N0")" class="input-field" style="margin-bottom:0;font-family:var(--font-en);background:var(--surface-color);" /></div>
+                        <div>
+                            <label style="display:block;margin-bottom:0.3rem;color:var(--text-muted);font-size:0.8rem;">نرخ مالیات</label>
+                            <select value="@GetActiveTaxDisplay()" @onchange="OnTaxRateChange" class="input-field" style="margin-bottom:0;border-color:var(--primary-color);">
+                                <option value="0">بدون مالیات (۰٪)</option>
+                                <option value="5">۵٪</option>
+                                <option value="9">۹٪ (پیش‌فرض)</option>
+                                <option value="custom">سفارشی</option>
+                            </select>
+                        </div>
+                        <div><label style="display:block;margin-bottom:0.3rem;color:var(--text-muted);font-size:0.8rem;">مالیات (ریال)</label><input readonly value="@editingInvoice.Tax.ToString("N0")" class="input-field" style="margin-bottom:0;font-family:var(--font-en);background:var(--surface-color);" /></div>
                     </div>
                     <div style="display:flex;align-items:center;justify-content:space-between;background:var(--surface-color);padding:0.75rem 1rem;border-radius:var(--radius-md);border:1px solid var(--success);margin-bottom:1rem;">
                         <span style="font-weight:bold;color:var(--success);">مبلغ نهایی:</span>
@@ -352,10 +450,42 @@
                 <div style="min-height:280px;">
                     <div style="background:var(--bg-color);border:1px solid var(--border-color);border-radius:var(--radius-md);padding:1.25rem;margin-bottom:1.25rem;">
                         <h3 style="font-size:0.9rem;color:var(--text-muted);font-weight:bold;margin-bottom:1rem;">مشخصات حمل‌ونقل</h3>
-                        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:1rem;margin-bottom:1rem;">
+                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1rem;">
                             <div><label style="display:block;margin-bottom:0.3rem;color:var(--text-muted);font-size:0.82rem;">نام راننده / باربری</label><input type="text" @bind="editingInvoice.DriverName" class="input-field" style="margin-bottom:0;" /></div>
                             <div><label style="display:block;margin-bottom:0.3rem;color:var(--text-muted);font-size:0.82rem;">موبایل راننده</label><input type="text" @bind="editingInvoice.DriverPhone" class="input-field" style="margin-bottom:0;direction:ltr;font-family:var(--font-en);" /></div>
-                            <div><label style="display:block;margin-bottom:0.3rem;color:var(--text-muted);font-size:0.82rem;">پلاک خودرو</label><input type="text" @bind="editingInvoice.VehiclePlate" class="input-field" style="margin-bottom:0;" placeholder="12ج456-11" /></div>
+                        </div>
+                        <!-- پلاک ساختارمند ایرانی -->
+                        <div style="margin-bottom:1rem;">
+                            <label style="display:block;margin-bottom:0.5rem;color:var(--text-muted);font-size:0.82rem;">پلاک خودرو (ایرانی)</label>
+                            <div class="plate-ir">
+                                <div class="plate-flag">
+                                    <span>🇮🇷</span>
+                                    <span>ایران</span>
+                                </div>
+                                <input class="plate-num" maxlength="2" placeholder="12"
+                                       value="@editingInvoice.VehiclePlatePart1"
+                                       @oninput="OnPlatePart1Input" />
+                                <select class="plate-letter"
+                                        value="@editingInvoice.VehiclePlateLetter"
+                                        @onchange="OnPlateLetterChange">
+                                    <option value="">—</option>
+                                    @foreach (var ch in PersianPlateLetters)
+                                    {
+                                        <option value="@ch">@ch</option>
+                                    }
+                                </select>
+                                <input class="plate-num" maxlength="3" placeholder="345"
+                                       value="@editingInvoice.VehiclePlatePart2"
+                                       @oninput="OnPlatePart2Input" />
+                                <div class="plate-divider">|</div>
+                                <input class="plate-region" maxlength="2" placeholder="67"
+                                       value="@editingInvoice.VehiclePlateRegion"
+                                       @oninput="OnPlateRegionInput" />
+                            </div>
+                            @if (!string.IsNullOrEmpty(editingInvoice.VehiclePlate))
+                            {
+                                <div style="font-size:0.75rem;color:var(--text-muted);margin-top:0.3rem;">ذخیره‌شده: <span class="industrial-num">@editingInvoice.VehiclePlate</span></div>
+                            }
                         </div>
                         <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;">
                             <div><label style="display:block;margin-bottom:0.3rem;color:var(--text-muted);font-size:0.82rem;">تاریخ ارسال</label><input type="date" @bind="editingInvoice.DispatchDate" class="input-field" style="margin-bottom:0;font-family:var(--font-en);" /></div>
@@ -563,6 +693,11 @@
     private List<TempItem> invoiceItems = new();
 
     private AfterSalesTicket ticketForm = new();
+    private List<FrameOrderItem> frameItems = new();
+    private FrameOrderItem frameItemForm = new() { FrameType = "چهارچوب فرانسوی", OpeningDirection = "راست‌باز", Quantity = 1 };
+
+    private static readonly string[] PersianPlateLetters =
+        { "الف","ب","پ","ت","ث","ج","د","ذ","ر","ز","ژ","س","ش","ص","ط","ع","ف","ق","ک","گ","ل","م","ن","و","ه","ی" };
 
     protected override async Task OnInitializedAsync()
     {
@@ -632,6 +767,8 @@
         }
         catch { crmCustomers = new(); editingInvoice.InvoiceNumber = "F-" + DateTime.Now.ToString("yyMMddHHmm"); }
 
+        frameItems = new();
+        frameItemForm = new FrameOrderItem { FrameType = "چهارچوب فرانسوی", OpeningDirection = "راست‌باز", Quantity = 1 };
         isWizardOpen = true;
         await InvokeAsync(StateHasChanged);
     }
@@ -654,15 +791,20 @@
             ProductionDeadline = inv.ProductionDeadline, IsUrgentProduction = inv.IsUrgentProduction,
             ReceivedInGoodCondition = inv.ReceivedInGoodCondition, ReceiverName = inv.ReceiverName,
             DriverName = inv.DriverName, DriverPhone = inv.DriverPhone, VehiclePlate = inv.VehiclePlate,
+            VehiclePlatePart1 = inv.VehiclePlatePart1, VehiclePlateLetter = inv.VehiclePlateLetter,
+            VehiclePlatePart2 = inv.VehiclePlatePart2, VehiclePlateRegion = inv.VehiclePlateRegion,
             InstallerPersonnelId = inv.InstallerPersonnelId, InstallerName = inv.InstallerName,
             InstallationDateTime = inv.InstallationDateTime, InstallationNotes = inv.InstallationNotes,
             WarrantyMonths = inv.WarrantyMonths, AfterSaleNotes = inv.AfterSaleNotes,
             Step1Notes = inv.Step1Notes, Step2Notes = inv.Step2Notes, Step3Notes = inv.Step3Notes,
             Step4Notes = inv.Step4Notes, Step5Notes = inv.Step5Notes, Step6Notes = inv.Step6Notes,
-            Notes = inv.Notes
+            Notes = inv.Notes, FrameOrderEnabled = inv.FrameOrderEnabled,
+            FrameOrdersJson = inv.FrameOrdersJson, CustomTaxRate = inv.CustomTaxRate
         };
 
+        if (inv.CustomTaxRate >= 0) taxRate = inv.CustomTaxRate;
         try { invoiceItems = JsonSerializer.Deserialize<List<TempItem>>(inv.ItemsJson ?? "[]") ?? new(); } catch { invoiceItems = new(); }
+        try { frameItems = JsonSerializer.Deserialize<List<FrameOrderItem>>(inv.FrameOrdersJson ?? "[]") ?? new(); } catch { frameItems = new(); }
 
         wizardStep = Math.Max(1, inv.CurrentStep);
         wizardError = ""; itemError = "";
@@ -821,6 +963,7 @@
             {
                 // فاکتور جدید
                 editingInvoice.ItemsJson = JsonSerializer.Serialize(invoiceItems);
+                editingInvoice.FrameOrdersJson = JsonSerializer.Serialize(frameItems);
                 if (editingInvoice.PaymentMethod == "چکی" || editingInvoice.PaymentMethod == "ترکیبی")
                     editingInvoice.CheckDetails = $"ش.صیاد: {editingInvoice.CheckNumber} | {editingInvoice.CheckBankName}";
 
@@ -874,6 +1017,13 @@
                     dbInv.ProductionDeadline = editingInvoice.ProductionDeadline; dbInv.IsUrgentProduction = editingInvoice.IsUrgentProduction;
                     dbInv.DriverName = editingInvoice.DriverName; dbInv.DriverPhone = editingInvoice.DriverPhone;
                     dbInv.VehiclePlate = editingInvoice.VehiclePlate;
+                    dbInv.VehiclePlatePart1 = editingInvoice.VehiclePlatePart1;
+                    dbInv.VehiclePlateLetter = editingInvoice.VehiclePlateLetter;
+                    dbInv.VehiclePlatePart2 = editingInvoice.VehiclePlatePart2;
+                    dbInv.VehiclePlateRegion = editingInvoice.VehiclePlateRegion;
+                    dbInv.FrameOrderEnabled = editingInvoice.FrameOrderEnabled;
+                    dbInv.FrameOrdersJson = JsonSerializer.Serialize(frameItems);
+                    dbInv.CustomTaxRate = editingInvoice.CustomTaxRate;
                     dbInv.ReceivedInGoodCondition = editingInvoice.ReceivedInGoodCondition; dbInv.ReceiverName = editingInvoice.ReceiverName;
                     dbInv.DispatchDate = editingInvoice.DispatchDate; dbInv.DeliveryDate = editingInvoice.DeliveryDate;
                     dbInv.InstallerPersonnelId = editingInvoice.InstallerPersonnelId; dbInv.InstallerName = editingInvoice.InstallerName;
@@ -981,6 +1131,53 @@
         1 => "#94a3b8", 2 => "#8b5cf6", 3 => "#3b82f6",
         4 => "#f59e0b", 5 => "#f97316", 6 => "#10b981", _ => "#94a3b8"
     };
+
+    // ── چهارچوب فلزی ──
+    private void AddFrameItem()
+    {
+        if (string.IsNullOrWhiteSpace(frameItemForm.Name)) return;
+        frameItems.Add(new FrameOrderItem
+        {
+            Name = frameItemForm.Name, FrameType = frameItemForm.FrameType,
+            OpeningDirection = frameItemForm.OpeningDirection,
+            UnitPrice = frameItemForm.UnitPrice, Quantity = frameItemForm.Quantity,
+            TaxRate = taxRate
+        });
+        frameItemForm = new FrameOrderItem { FrameType = "چهارچوب فرانسوی", OpeningDirection = "راست‌باز", Quantity = 1 };
+        StateHasChanged();
+    }
+
+    // ── پلاک ساختارمند ──
+    private void OnPlatePart1Input(ChangeEventArgs e) { editingInvoice.VehiclePlatePart1 = e.Value?.ToString() ?? string.Empty; SyncPlate(); }
+    private void OnPlateLetterChange(ChangeEventArgs e) { editingInvoice.VehiclePlateLetter = e.Value?.ToString() ?? string.Empty; SyncPlate(); }
+    private void OnPlatePart2Input(ChangeEventArgs e) { editingInvoice.VehiclePlatePart2 = e.Value?.ToString() ?? string.Empty; SyncPlate(); }
+    private void OnPlateRegionInput(ChangeEventArgs e) { editingInvoice.VehiclePlateRegion = e.Value?.ToString() ?? string.Empty; SyncPlate(); }
+
+    private void SyncPlate()
+    {
+        var p1 = editingInvoice.VehiclePlatePart1;
+        var lt = editingInvoice.VehiclePlateLetter;
+        var p2 = editingInvoice.VehiclePlatePart2;
+        var rg = editingInvoice.VehiclePlateRegion;
+        if (!string.IsNullOrEmpty(p1) && !string.IsNullOrEmpty(lt))
+            editingInvoice.VehiclePlate = $"{p1}{lt}{p2}-{rg}";
+    }
+
+    // ── مدیریت نرخ مالیات ──
+    private string GetActiveTaxDisplay()
+    {
+        var r = editingInvoice.CustomTaxRate >= 0 ? editingInvoice.CustomTaxRate : taxRate;
+        return r switch { 0m => "0", 0.05m => "5", 0.09m => "9", _ => "custom" };
+    }
+
+    private void OnTaxRateChange(ChangeEventArgs e)
+    {
+        var val = e.Value?.ToString();
+        decimal r = val switch { "0" => 0m, "5" => 0.05m, "9" => 0.09m, _ => taxRate };
+        editingInvoice.CustomTaxRate = r;
+        taxRate = r;
+        CalculateTotals();
+    }
 
     public void Dispose() => _db?.Dispose();
 }

@@ -1,0 +1,155 @@
+@page "/print/invoice-delivery/{Id:int}"
+@layout PrintLayout
+@using SmartERP.Core
+@using SmartERP.Infrastructure
+@using Microsoft.EntityFrameworkCore
+@using System.Text.Json
+@using Microsoft.JSInterop
+@using SmartERP.Helpers
+@implements IDisposable
+@inject IDbContextFactory<AppDbContext> DbFactory
+@inject IJSRuntime JSRuntime
+@inject NavigationManager NavManager
+
+@if (isLoading)
+{
+    <div style="text-align:center;padding:5rem;color:#000;font-family:'Tahoma';">در حال آماده‌سازی...</div>
+}
+else if (invoice == null || company == null)
+{
+    <div style="text-align:center;padding:5rem;color:#c00;font-family:'Tahoma';">فاکتور یافت نشد.</div>
+}
+else
+{
+    <div class="a4-page">
+        <!-- نوار بالای حمل‌ونقل -->
+        <div style="background:#1f2937;color:#fff;padding:0.75rem 1rem;margin:-1rem -1rem 1rem;display:flex;justify-content:space-between;align-items:center;">
+            <span style="font-weight:bold;font-size:1rem;">نسخه راننده / تحویل</span>
+            <span style="font-family:'Courier New';font-size:1rem;">@invoice.InvoiceNumber</span>
+        </div>
+
+        <!-- اطلاعات اصلی -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1rem;">
+            <div style="border:2px solid #111;border-radius:4px;padding:0.75rem;">
+                <div style="font-size:0.75rem;font-weight:bold;color:#444;margin-bottom:0.4rem;">تحویل به:</div>
+                <div style="font-size:1rem;font-weight:bold;">@invoice.CustomerName</div>
+                @if (!string.IsNullOrEmpty(invoice.CustomerPhone)) { <div style="font-size:0.82rem;font-family:'Courier New';">@invoice.CustomerPhone</div> }
+                @if (!string.IsNullOrEmpty(invoice.DeliveryAddress)) { <div style="font-size:0.78rem;color:#555;margin-top:0.3rem;">📍 @invoice.DeliveryAddress</div> }
+            </div>
+            <div style="border:2px solid #111;border-radius:4px;padding:0.75rem;">
+                <div style="font-size:0.75rem;font-weight:bold;color:#444;margin-bottom:0.4rem;">مشخصات راننده:</div>
+                <div style="font-size:0.9rem;font-weight:bold;">@(string.IsNullOrEmpty(invoice.DriverName) ? "——" : invoice.DriverName)</div>
+                @if (!string.IsNullOrEmpty(invoice.DriverPhone)) { <div style="font-size:0.82rem;font-family:'Courier New';">@invoice.DriverPhone</div> }
+                @if (!string.IsNullOrEmpty(invoice.VehiclePlate))
+                {
+                    <div style="margin-top:0.4rem;font-size:0.78rem;">پلاک: <span style="font-family:'Courier New';font-weight:bold;font-size:0.88rem;">@invoice.VehiclePlate</span></div>
+                }
+            </div>
+        </div>
+
+        <!-- تاریخ‌ها -->
+        <div style="display:flex;gap:2rem;border:1px solid #ccc;padding:0.6rem 0.75rem;border-radius:3px;margin-bottom:0.75rem;font-size:0.82rem;">
+            @if (invoice.DispatchDate.HasValue) { <span>تاریخ ارسال: <strong style="font-family:'Courier New';">@JalaliHelper.ToJalaliString(invoice.DispatchDate.Value)</strong></span> }
+            @if (invoice.DeliveryDate.HasValue) { <span>تاریخ تحویل: <strong style="font-family:'Courier New';color:#d00;">@JalaliHelper.ToJalaliString(invoice.DeliveryDate.Value)</strong></span> }
+        </div>
+
+        <!-- اقلام -->
+        <table style="width:100%;border-collapse:collapse;margin-bottom:0.75rem;font-size:0.85rem;">
+            <thead>
+                <tr style="background:#f3f4f6;border:1px solid #ccc;">
+                    <th style="padding:0.4rem 0.6rem;border:1px solid #ccc;width:6%;text-align:center;">ردیف</th>
+                    <th style="padding:0.4rem 0.6rem;border:1px solid #ccc;text-align:right;">شرح کالا</th>
+                    <th style="padding:0.4rem 0.6rem;border:1px solid #ccc;width:12%;text-align:center;">تعداد</th>
+                    <th style="padding:0.4rem 0.6rem;border:1px solid #ccc;width:20%;text-align:center;">وضعیت تحویل</th>
+                </tr>
+            </thead>
+            <tbody>
+                @{ int row = 1; }
+                @foreach (var item in items)
+                {
+                    <tr>
+                        <td style="padding:0.4rem;border:1px solid #ddd;text-align:center;font-family:'Courier New';color:#555;">@row</td>
+                        <td style="padding:0.4rem 0.6rem;border:1px solid #ddd;font-weight:bold;">@item</td>
+                        <td style="padding:0.4rem;border:1px solid #ddd;text-align:center;font-family:'Courier New';"></td>
+                        <td style="padding:0.4rem;border:1px solid #ddd;text-align:center;">
+                            <div style="display:flex;gap:1rem;justify-content:center;font-size:0.78rem;">
+                                <label>☐ سالم</label>
+                                <label>☐ معیوب</label>
+                            </div>
+                        </td>
+                    </tr>
+                    row++;
+                }
+            </tbody>
+        </table>
+
+        <!-- تاییدیه تحویل -->
+        <div style="border:2px solid #059669;border-radius:4px;padding:0.75rem;margin-bottom:0.75rem;background:#f0fdf4;">
+            <div style="font-size:0.78rem;font-weight:bold;color:#166534;margin-bottom:0.5rem;">تأییدیه تحویل کالا</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;font-size:0.8rem;">
+                <div>نام تحویل‌گیرنده: <span style="font-weight:bold;">@(string.IsNullOrEmpty(invoice.ReceiverName) ? "................................" : invoice.ReceiverName)</span></div>
+                <div>تاریخ تحویل: <span style="font-family:'Courier New';">................................</span></div>
+            </div>
+            <div style="margin-top:0.75rem;display:grid;grid-template-columns:1fr 1fr;gap:1rem;font-size:0.8rem;">
+                <div>امضای تحویل‌گیرنده:
+                    <div style="height:40px;border-bottom:1px dashed #ccc;margin-top:0.3rem;"></div>
+                </div>
+                <div>امضای راننده:
+                    <div style="height:40px;border-bottom:1px dashed #ccc;margin-top:0.3rem;"></div>
+                </div>
+            </div>
+        </div>
+
+        <div style="text-align:center;font-size:0.72rem;color:#777;border-top:1px dashed #ccc;padding-top:0.5rem;">
+            @company.CompanyName — @(string.IsNullOrEmpty(company.PhoneNumber) ? "" : company.PhoneNumber)
+        </div>
+    </div>
+
+    <div class="no-print" style="position:fixed;bottom:20px;left:20px;display:flex;gap:10px;z-index:10;">
+        <button @onclick="PrintPage" style="background:#059669;color:#fff;padding:10px 24px;border:none;border-radius:5px;font-weight:bold;cursor:pointer;font-family:'Tahoma';">چاپ (نسخه راننده)</button>
+        <button @onclick="GoBack" style="background:#374151;color:#fff;padding:10px 20px;border:none;border-radius:5px;font-weight:bold;cursor:pointer;font-family:'Tahoma';">بازگشت</button>
+    </div>
+}
+
+<style>
+    .a4-page { width:210mm;min-height:297mm;margin:8mm auto;background:white;color:#111;padding:10mm;font-family:'Tahoma',sans-serif;direction:rtl;border:1px solid #ddd; }
+    @@media print { .no-print{display:none!important;} .a4-page{margin:0;border:none;width:auto;min-height:auto;padding:8mm;} body{background:white!important;} }
+</style>
+
+@code {
+    [Parameter] public int Id { get; set; }
+    private AppDbContext _db = null!;
+    private Invoice? invoice;
+    private CompanySetting? company;
+    private bool isLoading = true;
+    private List<string> items = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        _db = await DbFactory.CreateDbContextAsync();
+        try
+        {
+            invoice = await _db.Invoices.AsNoTracking().FirstOrDefaultAsync(i => i.Id == Id);
+            company = await _db.CompanySettings.AsNoTracking().FirstOrDefaultAsync();
+            if (invoice != null)
+            {
+                try
+                {
+                    using var doc = JsonDocument.Parse(invoice.ItemsJson ?? "[]");
+                    foreach (var el in doc.RootElement.EnumerateArray())
+                    {
+                        if (el.TryGetProperty("ProductName", out var n) && !string.IsNullOrEmpty(n.GetString()))
+                            items.Add(n.GetString()!);
+                    }
+                }
+                catch { }
+            }
+        }
+        catch { }
+        finally { isLoading = false; }
+    }
+
+    private async Task PrintPage() => await JSRuntime.InvokeVoidAsync("window.print");
+    private void GoBack() => NavManager.NavigateTo("/invoices");
+    public void Dispose() => _db?.Dispose();
+}

@@ -80,5 +80,39 @@ namespace SmartERP.Core
         // مرحله ۶: خدمات پس از فروش
         public int WarrantyMonths { get; set; } = 0;
         public string AfterSaleNotes { get; set; } = string.Empty;
+
+        // ═══ بخش سفارش چهارچوب فلزی ═══
+        public bool FrameOrderEnabled { get; set; } = false;
+        // JSON آرایه از FrameOrderItem
+        public string FrameOrdersJson { get; set; } = "[]";
+
+        // ═══ پلاک ساختارمند ایرانی ═══
+        // ۲ رقم اول | حرف فارسی | ۳ رقم | کد ایران
+        public string VehiclePlatePart1 { get; set; } = string.Empty;
+        public string VehiclePlateLetter { get; set; } = string.Empty;
+        public string VehiclePlatePart2 { get; set; } = string.Empty;
+        public string VehiclePlateRegion { get; set; } = string.Empty;
+
+        // نرخ مالیات سفارشی (منفی یعنی از تنظیمات شرکت استفاده شود)
+        public decimal CustomTaxRate { get; set; } = -1m;
+
+        // درصد پیشرفت گردش‌کار فاکتور (۵ مرحله)
+        public int GetInvoiceWorkflowPercentage() => CurrentStep switch
+        {
+            1 => 20,
+            2 => 40,
+            3 => 60,
+            4 => 80,
+            >= 5 => 100,
+            _ => 0
+        };
+
+        // پلاک کامل ترکیبی برای ذخیره و نمایش
+        public string GetFormattedPlate()
+        {
+            if (!string.IsNullOrEmpty(VehiclePlatePart1) && !string.IsNullOrEmpty(VehiclePlateLetter))
+                return $"{VehiclePlatePart1}{VehiclePlateLetter}{VehiclePlatePart2}-{VehiclePlateRegion}";
+            return VehiclePlate;
+        }
     }
 }

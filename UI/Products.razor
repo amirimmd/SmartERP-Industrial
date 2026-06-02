@@ -18,12 +18,12 @@
 
     <!-- تب‌های دسته‌بندی -->
     <div style="display:flex;gap:0;margin-bottom:1.5rem;border-bottom:1px solid var(--border-color);">
-        @foreach (var tab in new[] { "همه", "محصول نهایی", "مواد اولیه" })
+        @foreach (var tab in new[] { "همه", "محصول نهایی", "مواد اولیه", "چهارچوب فلزی" })
         {
             <button @onclick="() => { activeTab = tab; ApplyFilter(); }"
                     style="padding:0.7rem 1.5rem;border:none;border-bottom:2px solid @(activeTab==tab ? "var(--primary-color)" : "transparent");background:transparent;color:@(activeTab==tab ? "var(--primary-color)" : "var(--text-muted)");cursor:pointer;font-family:var(--font-fa);font-weight:@(activeTab==tab ? "bold" : "normal");font-size:0.9rem;">
                 @tab
-                <span class="industrial-num" style="font-size:0.75rem;margin-right:0.35rem;opacity:0.7;">(@(tab == "همه" ? allProducts.Count : allProducts.Count(p => p.Category == tab)))</span>
+                <span class="industrial-num" style="font-size:0.75rem;margin-right:0.35rem;opacity:0.7;">(@(tab == "همه" ? allProducts.Count : tab == "چهارچوب فلزی" ? allProducts.Count(p => p.IsFrameProduct) : allProducts.Count(p => p.Category == tab)))</span>
             </button>
         }
     </div>
@@ -207,11 +207,50 @@
 
             <div style="background:var(--bg-color);border:1px solid var(--border-color);border-radius:var(--radius-md);padding:1.25rem;margin-bottom:1rem;">
                 <p style="font-size:0.8rem;color:var(--text-muted);font-weight:bold;margin-bottom:1rem;">قیمت‌گذاری (ریال)</p>
-                <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:1rem;">
+                <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:1rem;">
                     <div><label style="display:block;margin-bottom:0.3rem;color:var(--text-muted);font-size:0.8rem;">قیمت خرید / تمام‌شده</label><input type="number" @bind="pForm.PurchasePrice" class="input-field" style="margin-bottom:0;font-family:var(--font-en);" min="0" /></div>
                     <div><label style="display:block;margin-bottom:0.3rem;color:var(--text-muted);font-size:0.8rem;">قیمت فروش روز *</label><input type="number" @bind="pForm.Price" class="input-field" style="margin-bottom:0;font-family:var(--font-en);border-color:var(--success);" min="0" /></div>
                     <div><label style="display:block;margin-bottom:0.3rem;color:var(--text-muted);font-size:0.8rem;">حداقل قیمت فروش</label><input type="number" @bind="pForm.MinSalePrice" class="input-field" style="margin-bottom:0;font-family:var(--font-en);" min="0" /></div>
+                    <div>
+                        <label style="display:block;margin-bottom:0.3rem;color:var(--text-muted);font-size:0.8rem;">نرخ مالیات</label>
+                        <select @bind="pForm.TaxRate" class="input-field" style="margin-bottom:0;">
+                            <option value="-1">پیش‌فرض شرکت</option>
+                            <option value="0">۰٪</option>
+                            <option value="0.05">۵٪</option>
+                            <option value="0.09">۹٪</option>
+                        </select>
+                    </div>
                 </div>
+            </div>
+
+            <!-- ─── مشخصات چهارچوب فلزی ─── -->
+            <div style="background:var(--bg-color);border:1px solid @(pForm.IsFrameProduct ? "rgba(245,158,11,0.4)" : "var(--border-color)");border-radius:var(--radius-md);padding:1.25rem;margin-bottom:1rem;">
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:@(pForm.IsFrameProduct ? "1rem" : "0");">
+                    <p style="font-size:0.8rem;color:@(pForm.IsFrameProduct ? "var(--primary-color)" : "var(--text-muted)");font-weight:bold;margin:0;">🔧 محصول چهارچوب فلزی</p>
+                    <label class="toggle-switch">
+                        <input type="checkbox" @bind="pForm.IsFrameProduct" />
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
+                @if (pForm.IsFrameProduct)
+                {
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;">
+                        <div>
+                            <label style="display:block;margin-bottom:0.3rem;color:var(--text-muted);font-size:0.8rem;">نوع چهارچوب</label>
+                            <select @bind="pForm.FrameType" class="input-field" style="margin-bottom:0;border-color:var(--primary-color);">
+                                <option>چهارچوب فرانسوی</option>
+                                <option>چهارچوب مکزیکی</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label style="display:block;margin-bottom:0.3rem;color:var(--text-muted);font-size:0.8rem;">جهت باز شدن پیش‌فرض</label>
+                            <select @bind="pForm.OpeningDirection" class="input-field" style="margin-bottom:0;">
+                                <option>راست‌باز</option>
+                                <option>چپ‌باز</option>
+                            </select>
+                        </div>
+                    </div>
+                }
             </div>
 
             <div style="background:var(--bg-color);border:1px solid var(--border-color);border-radius:var(--radius-md);padding:1.25rem;margin-bottom:1.5rem;">
@@ -276,7 +315,8 @@
     private void ApplyFilter()
     {
         var q = allProducts.AsEnumerable();
-        if (activeTab != "همه") q = q.Where(p => p.Category == activeTab);
+        if (activeTab == "چهارچوب فلزی") q = q.Where(p => p.IsFrameProduct);
+        else if (activeTab != "همه") q = q.Where(p => p.Category == activeTab);
         if (!string.IsNullOrEmpty(_filterSubCat)) q = q.Where(p => p.SubCategory == _filterSubCat);
         if (_filterStock == "low") q = q.Where(p => p.StockQuantity > 0 && p.StockQuantity <= p.MinStockAlert);
         else if (_filterStock == "ok") q = q.Where(p => p.StockQuantity > p.MinStockAlert);
@@ -313,7 +353,9 @@
             Material = p.Material, Color = p.Color,
             PurchasePrice = p.PurchasePrice, Price = p.Price, MinSalePrice = p.MinSalePrice,
             StockQuantity = p.StockQuantity, Unit = p.Unit, MinStockAlert = p.MinStockAlert,
-            IsActive = p.IsActive, CreatedAt = p.CreatedAt
+            IsActive = p.IsActive, CreatedAt = p.CreatedAt,
+            IsFrameProduct = p.IsFrameProduct, FrameType = p.FrameType,
+            OpeningDirection = p.OpeningDirection, TaxRate = p.TaxRate
         };
         modalError = ""; isModalOpen = true;
     }
@@ -346,6 +388,10 @@
                     existing.MinSalePrice = pForm.MinSalePrice; existing.StockQuantity = pForm.StockQuantity;
                     existing.Unit = pForm.Unit; existing.MinStockAlert = pForm.MinStockAlert;
                     existing.IsActive = pForm.IsActive;
+                    existing.IsFrameProduct = pForm.IsFrameProduct;
+                    existing.FrameType = pForm.FrameType;
+                    existing.OpeningDirection = pForm.OpeningDirection;
+                    existing.TaxRate = pForm.TaxRate;
                 }
             }
             await db.SaveChangesAsync();
@@ -370,3 +416,4 @@
 
     public void Dispose() => _db?.Dispose();
 }
+

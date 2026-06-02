@@ -174,6 +174,343 @@ textarea.input-field {
     margin-bottom: 1rem;
 }
 
+/* ═══════════════════════════════════════════════════════════════
+   گردش‌کار تولید — نوار پیشرفت، بج وضعیت، چک‌لیست، تایم‌لاین
+   ═══════════════════════════════════════════════════════════════ */
+
+/* نوار پیشرفت */
+.progress-track {
+    height: 8px;
+    background: var(--border-color);
+    border-radius: 4px;
+    overflow: hidden;
+    width: 100%;
+}
+.progress-fill {
+    height: 100%;
+    border-radius: 4px;
+    background: var(--primary-color);
+}
+.progress-fill.green  { background: var(--success); }
+.progress-fill.blue   { background: var(--accent-color); }
+.progress-fill.orange { background: var(--primary-color); }
+
+/* نوار پیشرفت نازک برای جدول */
+.progress-track-thin {
+    height: 4px;
+    background: var(--border-color);
+    border-radius: 2px;
+    overflow: hidden;
+    width: 100%;
+    margin-top: 4px;
+}
+.progress-fill-thin {
+    height: 100%;
+    border-radius: 2px;
+}
+
+/* بج وضعیت مراحل تولید */
+.badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.2rem 0.6rem;
+    border-radius: var(--radius-md);
+    font-size: 0.78rem;
+    font-weight: bold;
+    gap: 0.25rem;
+    white-space: nowrap;
+}
+.badge-registered  { background: rgba(161,161,170,0.12); color: var(--text-muted); border: 1px solid rgba(161,161,170,0.2); }
+.badge-inprod      { background: rgba(245,158,11,0.12);  color: var(--primary-color); border: 1px solid rgba(245,158,11,0.25); }
+.badge-ready       { background: rgba(16,185,129,0.12);  color: var(--success);       border: 1px solid rgba(16,185,129,0.25); }
+.badge-urgent      { background: rgba(239,68,68,0.12);   color: var(--danger);        border: 1px solid rgba(239,68,68,0.25); }
+.badge-normal      { background: rgba(59,130,246,0.12);  color: var(--accent-color);  border: 1px solid rgba(59,130,246,0.2); }
+.badge-low         { background: rgba(161,161,170,0.08); color: var(--text-muted);    border: 1px solid var(--border-color); }
+
+/* چک‌لیست مراحل */
+.checklist { list-style: none; padding: 0; margin: 0; }
+.checklist li {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.25rem 0;
+    font-size: 0.82rem;
+    color: var(--text-muted);
+}
+.checklist li.done { color: var(--success); }
+.checklist li.done::before { content: "✓"; color: var(--success); font-weight: bold; }
+.checklist li.pending::before { content: "◻"; color: var(--border-color); }
+
+/* مراحل گردش‌کار (workflow steps) */
+.wf-steps {
+    display: flex;
+    align-items: center;
+    gap: 0;
+}
+.wf-step {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.3rem;
+    flex: 1;
+    position: relative;
+}
+.wf-step-circle {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.8rem;
+    font-weight: bold;
+    border: 2px solid var(--border-color);
+    background: var(--bg-color);
+    color: var(--text-muted);
+    z-index: 1;
+}
+.wf-step-circle.active  { border-color: var(--primary-color); background: var(--primary-color); color: #000; }
+.wf-step-circle.done    { border-color: var(--success); background: var(--success); color: #000; }
+.wf-step-label {
+    font-size: 0.68rem;
+    color: var(--text-muted);
+    text-align: center;
+    max-width: 70px;
+    line-height: 1.2;
+}
+.wf-step-label.active { color: var(--primary-color); font-weight: bold; }
+.wf-step-label.done   { color: var(--success); }
+.wf-connector {
+    flex: 1;
+    height: 2px;
+    background: var(--border-color);
+    margin-bottom: 20px;
+}
+.wf-connector.done { background: var(--success); }
+
+/* ═══ پلاک خودرو ایرانی ═══ */
+.plate-ir {
+    display: inline-flex;
+    align-items: stretch;
+    border: 2px solid #1a3a6b;
+    border-radius: 6px;
+    overflow: hidden;
+    background: #fff;
+    direction: ltr;
+    height: 42px;
+    min-width: 240px;
+}
+.plate-flag {
+    background: #1a3a6b;
+    color: #fff;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 0 6px;
+    font-size: 0.6rem;
+    font-weight: bold;
+    gap: 1px;
+    min-width: 28px;
+}
+.plate-flag span { font-size: 0.55rem; letter-spacing: 0.5px; }
+.plate-num {
+    background: #fff;
+    border: none;
+    border-left: 1px solid #1a3a6b;
+    color: #111;
+    font-family: 'Courier New', monospace;
+    font-size: 1.1rem;
+    font-weight: bold;
+    text-align: center;
+    padding: 0 4px;
+    outline: none;
+    width: 46px;
+    letter-spacing: 2px;
+}
+.plate-letter {
+    background: #fff;
+    border: none;
+    border-left: 1px solid #1a3a6b;
+    color: #111;
+    font-family: var(--font-fa);
+    font-size: 1rem;
+    font-weight: bold;
+    text-align: center;
+    padding: 0 4px;
+    outline: none;
+    width: 44px;
+    cursor: pointer;
+    -webkit-appearance: none;
+    appearance: none;
+}
+.plate-divider {
+    background: #fff;
+    border-left: 1px solid #1a3a6b;
+    display: flex;
+    align-items: center;
+    padding: 0 3px;
+    color: #1a3a6b;
+    font-weight: bold;
+    font-size: 0.9rem;
+}
+.plate-region {
+    background: #fff;
+    border: none;
+    border-left: 1px solid #1a3a6b;
+    color: #111;
+    font-family: 'Courier New', monospace;
+    font-size: 1.1rem;
+    font-weight: bold;
+    text-align: center;
+    padding: 0 4px;
+    outline: none;
+    width: 50px;
+    letter-spacing: 2px;
+}
+
+/* ═══ ورودی عددی با استپر ═══ */
+.price-stepper {
+    display: flex;
+    align-items: stretch;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+}
+.price-stepper input {
+    flex: 1;
+    background: var(--bg-color);
+    border: none;
+    color: var(--text-main);
+    padding: 0.6rem 0.75rem;
+    font-family: var(--font-en);
+    font-size: 0.95rem;
+    text-align: left;
+    outline: none;
+    min-width: 0;
+}
+.price-stepper input:focus { background: rgba(245,158,11,0.04); }
+.step-btn {
+    background: var(--surface-color);
+    border: none;
+    border-right: 1px solid var(--border-color);
+    color: var(--text-muted);
+    cursor: pointer;
+    padding: 0 10px;
+    font-size: 1.1rem;
+    font-weight: bold;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 34px;
+    user-select: none;
+    -webkit-user-select: none;
+}
+.step-btn:hover { color: var(--primary-color); background: rgba(245,158,11,0.08); }
+.step-btn.step-up { border-right: none; border-left: 1px solid var(--border-color); }
+
+/* ═══ تایم‌لاین فاکتور ═══ */
+.timeline { position: relative; padding-right: 1.5rem; }
+.timeline::before {
+    content: '';
+    position: absolute;
+    right: 7px;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: var(--border-color);
+}
+.tl-item { position: relative; margin-bottom: 1rem; }
+.tl-dot {
+    position: absolute;
+    right: -1.5rem;
+    top: 4px;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    border: 2px solid var(--border-color);
+    background: var(--bg-color);
+}
+.tl-dot.done   { border-color: var(--success); background: var(--success); }
+.tl-dot.active { border-color: var(--primary-color); background: var(--primary-color); }
+.tl-title { font-size: 0.88rem; font-weight: bold; color: var(--text-main); }
+.tl-title.done   { color: var(--success); }
+.tl-title.active { color: var(--primary-color); }
+.tl-meta  { font-size: 0.75rem; color: var(--text-muted); margin-top: 0.1rem; }
+
+/* ═══ انتخاب سفارش برای گزارش (checkbox) ═══ */
+.order-select-row { cursor: pointer; }
+.order-select-row:hover { background: rgba(245,158,11,0.04) !important; }
+.order-select-row.selected { background: rgba(245,158,11,0.08) !important; border-right: 3px solid var(--primary-color); }
+
+/* ═══ کارت ویجت داشبورد عملیاتی ═══ */
+.op-widget {
+    background: var(--surface-color);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    padding: 1rem 1.25rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+.op-widget:hover { border-color: var(--primary-color); }
+.op-widget-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: var(--radius-md);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    font-size: 1.3rem;
+}
+.op-widget-body { flex: 1; min-width: 0; }
+.op-widget-num  { font-family: var(--font-en); font-size: 1.6rem; font-weight: 800; line-height: 1; }
+.op-widget-label { font-size: 0.78rem; color: var(--text-muted); margin-top: 0.2rem; }
+
+/* ═══ فرم چهارچوب فلزی ═══ */
+.frame-section {
+    border: 1px solid rgba(245,158,11,0.3);
+    border-radius: var(--radius-md);
+    background: rgba(245,158,11,0.04);
+    padding: 1rem;
+    margin-bottom: 1rem;
+}
+.frame-section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.75rem;
+    padding-bottom: 0.6rem;
+    border-bottom: 1px solid rgba(245,158,11,0.2);
+}
+.toggle-switch {
+    position: relative;
+    display: inline-block;
+    width: 44px;
+    height: 24px;
+    flex-shrink: 0;
+}
+.toggle-switch input { opacity: 0; width: 0; height: 0; }
+.toggle-slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: var(--border-color);
+    border-radius: 24px;
+}
+.toggle-slider::before {
+    content: '';
+    position: absolute;
+    width: 18px; height: 18px;
+    left: 3px; bottom: 3px;
+    background: var(--text-muted);
+    border-radius: 50%;
+}
+.toggle-switch input:checked + .toggle-slider { background: var(--primary-color); }
+.toggle-switch input:checked + .toggle-slider::before { left: 23px; background: #000; }
+
 /* استایل‌های چاپ A4 */
 @media print {
     * {

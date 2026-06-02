@@ -1,0 +1,171 @@
+@page "/print/invoice-internal/{Id:int}"
+@layout PrintLayout
+@using SmartERP.Core
+@using SmartERP.Infrastructure
+@using Microsoft.EntityFrameworkCore
+@using System.Text.Json
+@using Microsoft.JSInterop
+@using SmartERP.Helpers
+@implements IDisposable
+@inject IDbContextFactory<AppDbContext> DbFactory
+@inject IJSRuntime JSRuntime
+@inject NavigationManager NavManager
+
+@if (isLoading)
+{
+    <div style="text-align:center;padding:5rem;color:#000;font-family:'Tahoma';">در حال آماده‌سازی فاکتور داخلی...</div>
+}
+else if (invoice == null || company == null)
+{
+    <div style="text-align:center;padding:5rem;color:#c00;font-family:'Tahoma';">فاکتور یافت نشد.</div>
+}
+else
+{
+    <div class="a4-page">
+        <!-- هدر -->
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;border-bottom:3px solid #111;padding-bottom:0.75rem;margin-bottom:0.75rem;">
+            <div>
+                <h1 style="font-size:1.2rem;font-weight:bold;margin:0;">@company.CompanyName</h1>
+                @if (!string.IsNullOrEmpty(company.Slogan)) { <p style="font-size:0.75rem;margin:0;color:#555;">@company.Slogan</p> }
+            </div>
+            <div style="text-align:center;border:2px solid #b45309;padding:0.5rem 1rem;border-radius:4px;background:#fffbeb;">
+                <div style="font-size:0.82rem;font-weight:bold;color:#b45309;">نسخه داخلی تولید</div>
+                <div style="font-size:1rem;font-weight:bold;font-family:'Courier New';">@invoice.InvoiceNumber</div>
+            </div>
+            <div style="text-align:left;font-size:0.8rem;line-height:1.8;color:#333;direction:rtl;">
+                <div>نوع سند: <strong>@invoice.InvoiceType</strong></div>
+                <div>تاریخ صدور: <strong style="font-family:'Courier New';">@JalaliHelper.ToJalaliString(invoice.InvoiceDate)</strong></div>
+                <div>وضعیت: <strong>@invoice.Status</strong></div>
+                @if (invoice.IsUrgentProduction) { <div style="color:#d00;font-weight:bold;">🔴 تولید فوری</div> }
+            </div>
+        </div>
+
+        <!-- اطلاعات مشتری + تولید -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;border:1px solid #ccc;margin-bottom:0.75rem;">
+            <div style="border-left:1px solid #ccc;padding:0.6rem 0.75rem;">
+                <div style="font-size:0.75rem;font-weight:bold;color:#444;border-bottom:1px dashed #ddd;padding-bottom:0.25rem;margin-bottom:0.35rem;">اطلاعات مشتری</div>
+                <div style="font-size:0.88rem;font-weight:bold;">@invoice.CustomerName</div>
+                @if (!string.IsNullOrEmpty(invoice.CustomerPhone)) { <div style="font-size:0.78rem;color:#555;font-family:'Courier New';">@invoice.CustomerPhone</div> }
+                @if (!string.IsNullOrEmpty(invoice.ProjectName)) { <div style="font-size:0.78rem;color:#555;">پروژه: @invoice.ProjectName</div> }
+                @if (!string.IsNullOrEmpty(invoice.DeliveryAddress)) { <div style="font-size:0.75rem;color:#666;">آدرس: @invoice.DeliveryAddress</div> }
+            </div>
+            <div style="padding:0.6rem 0.75rem;">
+                <div style="font-size:0.75rem;font-weight:bold;color:#444;border-bottom:1px dashed #ddd;padding-bottom:0.25rem;margin-bottom:0.35rem;">مشخصات تولید</div>
+                @if (invoice.ProductionDate.HasValue) { <div style="font-size:0.78rem;margin-bottom:0.2rem;">تاریخ شروع تولید: <strong style="font-family:'Courier New';">@JalaliHelper.ToJalaliString(invoice.ProductionDate.Value)</strong></div> }
+                @if (invoice.ProductionDeadline.HasValue) { <div style="font-size:0.78rem;margin-bottom:0.2rem;">مهلت تولید: <strong style="font-family:'Courier New';color:#d00;">@JalaliHelper.ToJalaliString(invoice.ProductionDeadline.Value)</strong></div> }
+                @if (invoice.DeliveryDate.HasValue) { <div style="font-size:0.78rem;margin-bottom:0.2rem;">تاریخ تحویل: <strong style="font-family:'Courier New';">@JalaliHelper.ToJalaliString(invoice.DeliveryDate.Value)</strong></div> }
+                @if (!string.IsNullOrEmpty(invoice.InstallerName)) { <div style="font-size:0.78rem;">نصاب: <strong>@invoice.InstallerName</strong></div> }
+            </div>
+        </div>
+
+        <!-- جدول اقلام -->
+        <table style="width:100%;border-collapse:collapse;margin-bottom:0.75rem;font-size:0.83rem;">
+            <thead>
+                <tr style="background:#1f2937;color:#fff;">
+                    <th style="padding:0.4rem 0.6rem;border:1px solid #374151;width:5%;text-align:center;">ردیف</th>
+                    <th style="padding:0.4rem 0.6rem;border:1px solid #374151;text-align:right;">شرح کالا</th>
+                    <th style="padding:0.4rem 0.6rem;border:1px solid #374151;width:10%;text-align:center;">تعداد</th>
+                    <th style="padding:0.4rem 0.6rem;border:1px solid #374151;width:18%;text-align:center;">قیمت واحد (ریال)</th>
+                    <th style="padding:0.4rem 0.6rem;border:1px solid #374151;width:18%;text-align:center;">جمع (ریال)</th>
+                </tr>
+            </thead>
+            <tbody>
+                @{ int row = 1; }
+                @foreach (var item in items)
+                {
+                    <tr>
+                        <td style="padding:0.35rem;border:1px solid #ddd;text-align:center;font-family:'Courier New';color:#555;">@row</td>
+                        <td style="padding:0.35rem 0.6rem;border:1px solid #ddd;font-weight:bold;">@item.Name</td>
+                        <td style="padding:0.35rem;border:1px solid #ddd;text-align:center;font-family:'Courier New';">@item.Qty</td>
+                        <td style="padding:0.35rem;border:1px solid #ddd;text-align:center;font-family:'Courier New';">@item.Price.ToString("N0")</td>
+                        <td style="padding:0.35rem;border:1px solid #ddd;text-align:center;font-family:'Courier New';font-weight:bold;">@((item.Price * (decimal)item.Qty).ToString("N0"))</td>
+                    </tr>
+                    row++;
+                }
+            </tbody>
+        </table>
+
+        <!-- اطلاعات راننده -->
+        @if (!string.IsNullOrEmpty(invoice.DriverName))
+        {
+            <div style="border:1px solid #ccc;padding:0.6rem 0.75rem;margin-bottom:0.75rem;background:#f0fdf4;border-radius:3px;">
+                <div style="font-size:0.75rem;font-weight:bold;color:#166534;margin-bottom:0.3rem;">مشخصات ارسال</div>
+                <div style="display:grid;grid-template-columns:1fr 1fr 1fr;font-size:0.8rem;gap:0.5rem;">
+                    <span>راننده: <strong>@invoice.DriverName</strong></span>
+                    @if (!string.IsNullOrEmpty(invoice.DriverPhone)) { <span>موبایل: <strong style="font-family:'Courier New';">@invoice.DriverPhone</strong></span> }
+                    @if (!string.IsNullOrEmpty(invoice.VehiclePlate)) { <span>پلاک: <strong style="font-family:'Courier New';">@invoice.VehiclePlate</strong></span> }
+                </div>
+            </div>
+        }
+
+        <!-- یادداشت تولید -->
+        @if (!string.IsNullOrEmpty(invoice.ProductionNotes))
+        {
+            <div style="border:1px solid #bbb;background:#fffbeb;padding:0.6rem 0.75rem;margin-bottom:0.75rem;border-radius:3px;">
+                <div style="font-size:0.75rem;font-weight:bold;color:#92400e;margin-bottom:0.3rem;">دستورالعمل تولید:</div>
+                <div style="font-size:0.82rem;color:#78350f;white-space:pre-wrap;">@invoice.ProductionNotes</div>
+            </div>
+        }
+
+        <!-- خلاصه مالی داخلی -->
+        <div style="display:flex;justify-content:flex-left;margin-top:auto;">
+            <div style="border:1px solid #ccc;padding:0.75rem;border-radius:3px;min-width:240px;font-size:0.82rem;">
+                <div style="display:flex;justify-content:space-between;margin-bottom:0.3rem;"><span>جمع کل:</span><span style="font-family:'Courier New';">@invoice.TotalAmount.ToString("N0")</span></div>
+                @if (invoice.Discount > 0) { <div style="display:flex;justify-content:space-between;margin-bottom:0.3rem;color:#d00;"><span>تخفیف:</span><span style="font-family:'Courier New';">@invoice.Discount.ToString("N0")</span></div> }
+                <div style="display:flex;justify-content:space-between;margin-bottom:0.3rem;"><span>مالیات:</span><span style="font-family:'Courier New';">@invoice.Tax.ToString("N0")</span></div>
+                <div style="display:flex;justify-content:space-between;border-top:1px solid #ccc;padding-top:0.3rem;font-weight:bold;"><span>مبلغ نهایی:</span><span style="font-family:'Courier New';font-size:1rem;">@invoice.FinalAmount.ToString("N0") ریال</span></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="no-print" style="position:fixed;bottom:20px;left:20px;display:flex;gap:10px;z-index:10;">
+        <button @onclick="PrintPage" style="background:#f59e0b;color:#000;padding:10px 24px;border:none;border-radius:5px;font-weight:bold;cursor:pointer;font-family:'Tahoma';">چاپ</button>
+        <button @onclick="GoBack" style="background:#374151;color:#fff;padding:10px 20px;border:none;border-radius:5px;font-weight:bold;cursor:pointer;font-family:'Tahoma';">بازگشت</button>
+    </div>
+}
+
+<style>
+    .a4-page { width:210mm;min-height:297mm;margin:8mm auto;background:white;color:#111;padding:10mm;font-family:'Tahoma',sans-serif;direction:rtl;border:1px solid #ddd; }
+    @@media print { .no-print{display:none!important;} .a4-page{margin:0;border:none;width:auto;min-height:auto;padding:8mm;} body{background:white!important;} }
+</style>
+
+@code {
+    [Parameter] public int Id { get; set; }
+    private AppDbContext _db = null!;
+    private Invoice? invoice;
+    private CompanySetting? company;
+    private bool isLoading = true;
+    private record LineItem(string Name, double Qty, decimal Price);
+    private List<LineItem> items = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        _db = await DbFactory.CreateDbContextAsync();
+        try
+        {
+            invoice = await _db.Invoices.AsNoTracking().FirstOrDefaultAsync(i => i.Id == Id);
+            company = await _db.CompanySettings.AsNoTracking().FirstOrDefaultAsync();
+            if (invoice != null)
+            {
+                try
+                {
+                    using var doc = JsonDocument.Parse(invoice.ItemsJson ?? "[]");
+                    foreach (var el in doc.RootElement.EnumerateArray())
+                    {
+                        var name = el.TryGetProperty("ProductName", out var n) ? n.GetString() ?? "" : "";
+                        var qty = el.TryGetProperty("Quantity", out var q) ? q.GetDouble() : 1;
+                        var price = el.TryGetProperty("UnitPrice", out var p) ? p.GetDecimal() : 0m;
+                        if (!string.IsNullOrEmpty(name)) items.Add(new LineItem(name, qty, price));
+                    }
+                }
+                catch { }
+            }
+        }
+        catch { }
+        finally { isLoading = false; }
+    }
+
+    private async Task PrintPage() => await JSRuntime.InvokeVoidAsync("window.print");
+    private void GoBack() => NavManager.NavigateTo("/invoices");
+    public void Dispose() => _db?.Dispose();
+}

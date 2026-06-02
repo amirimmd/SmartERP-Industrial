@@ -198,13 +198,21 @@ else
     </div>
 
     <!-- دکمه‌های کنترل (در پرینت مخفی) -->
-    <div class="no-print" style="position: fixed; bottom: 20px; left: 20px; display: flex; gap: 10px; z-index: 10;">
+    <div class="no-print" style="position: fixed; bottom: 20px; left: 20px; display: flex; gap: 8px; z-index: 10; flex-wrap: wrap; max-width: 600px;">
         <button @onclick="PrintPage"
-                style="background-color: #f59e0b; color: #000; padding: 10px 24px; border: none; border-radius: 5px; font-weight: bold; cursor: pointer; font-family: 'Tahoma'; font-size: 1rem;">
-            چاپ روی A4
+                style="background-color: #f59e0b; color: #000; padding: 10px 20px; border: none; border-radius: 5px; font-weight: bold; cursor: pointer; font-family: 'Tahoma'; font-size: 0.9rem;">
+            🖨 چاپ (نسخه مشتری)
+        </button>
+        <button @onclick="PrintInternal"
+                style="background-color: #1f2937; color: #fff; padding: 10px 16px; border: none; border-radius: 5px; font-weight: bold; cursor: pointer; font-family: 'Tahoma'; font-size: 0.9rem;">
+            🏭 نسخه داخلی
+        </button>
+        <button @onclick="PrintDelivery"
+                style="background-color: #059669; color: #fff; padding: 10px 16px; border: none; border-radius: 5px; font-weight: bold; cursor: pointer; font-family: 'Tahoma'; font-size: 0.9rem;">
+            🚚 نسخه راننده
         </button>
         <button @onclick="GoBack"
-                style="background-color: #374151; color: #fff; padding: 10px 20px; border: none; border-radius: 5px; font-weight: bold; cursor: pointer; font-family: 'Tahoma';">
+                style="background-color: #374151; color: #fff; padding: 10px 16px; border: none; border-radius: 5px; font-weight: bold; cursor: pointer; font-family: 'Tahoma'; font-size: 0.9rem;">
             بازگشت
         </button>
     </div>
@@ -269,11 +277,9 @@ else
         finally { isLoading = false; }
     }
 
-    private async Task PrintPage()
-    {
-        await JSRuntime.InvokeVoidAsync("window.print");
-    }
-
+    private async Task PrintPage() => await JSRuntime.InvokeVoidAsync("window.print");
+    private void PrintInternal() => NavManager.NavigateTo($"/print/invoice-internal/{Id}");
+    private void PrintDelivery() => NavManager.NavigateTo($"/print/invoice-delivery/{Id}");
     private void GoBack() => NavManager.NavigateTo("/invoices");
 
     public void Dispose() => _db?.Dispose();

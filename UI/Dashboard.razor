@@ -101,6 +101,62 @@
 
         </div>
 
+        <!-- ردیف ۱.۵: ویجت‌های عملیاتی تولید -->
+        <div style="margin-bottom:1.5rem;">
+            <div style="font-size:0.78rem;color:var(--text-muted);font-weight:bold;letter-spacing:1px;margin-bottom:0.75rem;">وضعیت عملیات امروز</div>
+            <div style="display:grid;grid-template-columns:repeat(4,1fr) repeat(3,1fr);gap:0.75rem;">
+                <div class="op-widget" @onclick='() => NavManager.NavigateTo("/orders?f=registered")' title="در انتظار شروع تولید">
+                    <div class="op-widget-icon" style="background:rgba(161,161,170,0.1);">🕐</div>
+                    <div class="op-widget-body">
+                        <div class="op-widget-num" style="color:var(--text-muted);">@ordersRegistered</div>
+                        <div class="op-widget-label">منتظر تولید</div>
+                    </div>
+                </div>
+                <div class="op-widget" @onclick='() => NavManager.NavigateTo("/orders?f=inprod")' title="سفارشات در خط تولید">
+                    <div class="op-widget-icon" style="background:rgba(245,158,11,0.1);">⚙️</div>
+                    <div class="op-widget-body">
+                        <div class="op-widget-num" style="color:var(--primary-color);">@ordersInProd</div>
+                        <div class="op-widget-label">در حال تولید</div>
+                    </div>
+                </div>
+                <div class="op-widget" @onclick='() => NavManager.NavigateTo("/orders?f=ready")' title="آماده تحویل به مشتری">
+                    <div class="op-widget-icon" style="background:rgba(16,185,129,0.1);">✅</div>
+                    <div class="op-widget-body">
+                        <div class="op-widget-num" style="color:var(--success);">@ordersReady</div>
+                        <div class="op-widget-label">آماده تحویل</div>
+                    </div>
+                </div>
+                <div class="op-widget" @onclick='() => NavManager.NavigateTo("/production-reports")' title="گزارشات تولید">
+                    <div class="op-widget-icon" style="background:rgba(59,130,246,0.1);">📋</div>
+                    <div class="op-widget-body">
+                        <div class="op-widget-num" style="color:var(--accent-color);">@ordersTotal</div>
+                        <div class="op-widget-label">کل سفارشات</div>
+                    </div>
+                </div>
+                <div class="op-widget" @onclick='() => NavManager.NavigateTo("/invoices")' title="تحویل‌های امروز">
+                    <div class="op-widget-icon" style="background:rgba(249,115,22,0.1);">🚚</div>
+                    <div class="op-widget-body">
+                        <div class="op-widget-num" style="color:#f97316;">@deliveriesToday</div>
+                        <div class="op-widget-label">تحویل امروز</div>
+                    </div>
+                </div>
+                <div class="op-widget" @onclick='() => NavManager.NavigateTo("/invoices")' title="نصب امروز">
+                    <div class="op-widget-icon" style="background:rgba(139,92,246,0.1);">🔧</div>
+                    <div class="op-widget-body">
+                        <div class="op-widget-num" style="color:#8b5cf6;">@installsToday</div>
+                        <div class="op-widget-label">نصب امروز</div>
+                    </div>
+                </div>
+                <div class="op-widget" @onclick='() => NavManager.NavigateTo("/calendar")' title="چک‌های سررسید ۷ روز آینده" style="border-color:@(checksNear > 0 ? "rgba(239,68,68,0.4)" : "var(--border-color)");">
+                    <div class="op-widget-icon" style="background:rgba(239,68,68,0.1);">💳</div>
+                    <div class="op-widget-body">
+                        <div class="op-widget-num" style="color:@(checksNear > 0 ? "var(--danger)" : "var(--text-muted)");">@checksNear</div>
+                        <div class="op-widget-label">سررسید چک (۷ روز)</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- ردیف ۲: یادآورهای آینده + کالاهای کم‌موجود -->
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;margin-bottom:2rem;">
 
@@ -278,6 +334,15 @@
     private List<Order> productionQueue = new();
     private List<CustomerReminder> upcomingReminders = new();
 
+    // ویجت‌های عملیاتی
+    private int ordersRegistered;
+    private int ordersInProd;
+    private int ordersReady;
+    private int ordersTotal;
+    private int deliveriesToday;
+    private int installsToday;
+    private int checksNear;
+
     protected override async Task OnInitializedAsync()
     {
         _db = await DbFactory.CreateDbContextAsync();
@@ -331,6 +396,22 @@
                 .OrderBy(r => r.ReminderDate)
                 .Take(5)
                 .ToListAsync();
+
+            // ویجت‌های عملیاتی
+            var allOrders = await _db.Orders.AsNoTracking().ToListAsync();
+            ordersTotal = allOrders.Count;
+            ordersRegistered = allOrders.Count(o => o.GetWorkflowStage() == 1);
+            ordersInProd = allOrders.Count(o => o.GetWorkflowStage() == 2);
+            ordersReady = allOrders.Count(o => o.GetWorkflowStage() == 3);
+
+            deliveriesToday = await _db.Invoices.AsNoTracking()
+                .CountAsync(i => i.DeliveryDate.HasValue && i.DeliveryDate.Value.Date == now.Date);
+            installsToday = await _db.Invoices.AsNoTracking()
+                .CountAsync(i => i.InstallationDateTime.HasValue && i.InstallationDateTime.Value.Date == now.Date);
+            checksNear = await _db.Invoices.AsNoTracking()
+                .CountAsync(i => i.CheckDueDate.HasValue &&
+                    i.CheckDueDate.Value.Date >= now.Date &&
+                    i.CheckDueDate.Value.Date <= now.AddDays(7).Date);
         }
         catch { }
         finally { isLoading = false; }

@@ -32,5 +32,30 @@ namespace SmartERP.Core
 
         // یادداشت مدیر تولید
         public string ProductionManagerNotes { get; set; } = string.Empty;
+
+        // اولویت تولید: فوری | عادی | کم‌اولویت
+        public string ProductionPriority { get; set; } = "عادی";
+
+        // تاریخ شروع واقعی تولید
+        public DateTime? ProductionStartDate { get; set; }
+
+        // تاریخ تکمیل تولید
+        public DateTime? CompletedAt { get; set; }
+
+        // درصد پیشرفت محاسبه‌شده بر اساس وضعیت
+        public int GetCompletionPercentage() => Status switch
+        {
+            "آماده تحویل" => 100,
+            "در حال ساخت" or "در حال تولید" => 50,
+            _ => 0  // ثبت شده / در انتظار بررسی
+        };
+
+        // مرحله گردش‌کار (۱=ثبت شده، ۲=در حال تولید، ۳=آماده تحویل)
+        public int GetWorkflowStage() => Status switch
+        {
+            "آماده تحویل" => 3,
+            "در حال ساخت" or "در حال تولید" => 2,
+            _ => 1
+        };
     }
 }

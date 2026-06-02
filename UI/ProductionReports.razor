@@ -1,0 +1,241 @@
+@page "/production-reports"
+@using SmartERP.Core
+@using SmartERP.Infrastructure
+@using Microsoft.EntityFrameworkCore
+@using SmartERP.Helpers
+@implements IDisposable
+@inject IDbContextFactory<AppDbContext> DbFactory
+@inject NavigationManager NavManager
+
+<div class="module-header">
+    <div style="display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:2rem;">
+        <div>
+            <h1 style="color:var(--primary-color);font-weight:800;font-size:1.8rem;margin-bottom:0.4rem;">گزارشات تولید</h1>
+            <p style="color:var(--text-muted);margin:0;font-size:0.9rem;">گزارش‌گیری دسته‌جمعی از سفارشات تولید</p>
+        </div>
+        <button class="btn-primary" @onclick="GenerateReport" disabled="@(!selectedIds.Any())">
+            🖨 تولید گزارش (@selectedIds.Count سفارش)
+        </button>
+    </div>
+
+    @if (!string.IsNullOrEmpty(pageError))
+    {
+        <div class="alert-error">@pageError</div>
+    }
+
+    <!-- ─── انتخاب نوع گزارش ─── -->
+    <div class="card" style="margin-bottom:1.5rem;padding:1.25rem;">
+        <p style="font-size:0.85rem;color:var(--text-muted);font-weight:bold;margin-bottom:1rem;">نوع گزارش</p>
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:0.75rem;">
+            @foreach (var (val, title, desc, icon) in ReportTypes)
+            {
+                <div @onclick="() => reportType = val"
+                     style="padding:0.9rem 1rem;border-radius:var(--radius-md);cursor:pointer;border:1px solid @(reportType==val ? "var(--primary-color)" : "var(--border-color)");background:@(reportType==val ? "rgba(245,158,11,0.08)" : "var(--bg-color)");">
+                    <div style="font-size:1.2rem;margin-bottom:0.4rem;">@icon</div>
+                    <div style="font-size:0.85rem;font-weight:bold;color:@(reportType==val ? "var(--primary-color)" : "var(--text-main)");">@title</div>
+                    <div style="font-size:0.75rem;color:var(--text-muted);margin-top:0.15rem;">@desc</div>
+                </div>
+            }
+        </div>
+    </div>
+
+    <!-- ─── فیلترها ─── -->
+    <div class="card" style="margin-bottom:1.5rem;padding:1rem 1.5rem;">
+        <p style="font-size:0.82rem;color:var(--text-muted);font-weight:bold;margin-bottom:0.75rem;">فیلترها</p>
+        <div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr 1fr auto;gap:0.75rem;align-items:flex-end;">
+            <div>
+                <label style="font-size:0.78rem;color:var(--text-muted);display:block;margin-bottom:0.25rem;">جستجو (مشتری)</label>
+                <input type="text" @bind="searchQ" @bind:event="oninput" placeholder="جستجو..." class="input-field" style="margin-bottom:0;" />
+            </div>
+            <div>
+                <label style="font-size:0.78rem;color:var(--text-muted);display:block;margin-bottom:0.25rem;">وضعیت</label>
+                <select @bind="fStatus" class="input-field" style="margin-bottom:0;">
+                    <option value="">همه</option>
+                    <option value="در انتظار بررسی">ثبت شده</option>
+                    <option value="در حال ساخت">در حال تولید</option>
+                    <option value="آماده تحویل">آماده تحویل</option>
+                </select>
+            </div>
+            <div>
+                <label style="font-size:0.78rem;color:var(--text-muted);display:block;margin-bottom:0.25rem;">اولویت</label>
+                <select @bind="fPriority" class="input-field" style="margin-bottom:0;">
+                    <option value="">همه</option>
+                    <option value="فوری">فوری</option>
+                    <option value="عادی">عادی</option>
+                    <option value="کم‌اولویت">کم‌اولویت</option>
+                </select>
+            </div>
+            <div>
+                <label style="font-size:0.78rem;color:var(--text-muted);display:block;margin-bottom:0.25rem;">تحویل از</label>
+                <input type="date" @bind="fDateFrom" class="input-field" style="margin-bottom:0;font-family:var(--font-en);" />
+            </div>
+            <div>
+                <label style="font-size:0.78rem;color:var(--text-muted);display:block;margin-bottom:0.25rem;">تحویل تا</label>
+                <input type="date" @bind="fDateTo" class="input-field" style="margin-bottom:0;font-family:var(--font-en);" />
+            </div>
+            <button style="padding:0.7rem 1rem;border-radius:var(--radius-md);cursor:pointer;font-family:var(--font-fa);font-size:0.85rem;background:var(--bg-color);color:var(--text-muted);border:1px solid var(--border-color);" @onclick="ClearFilters">پاک</button>
+        </div>
+        <div style="margin-top:0.5rem;display:flex;align-items:center;justify-content:space-between;">
+            <div style="font-size:0.8rem;color:var(--text-muted);">
+                <span class="industrial-num" style="color:var(--primary-color);">@filtered.Count</span> سفارش
+                @if (selectedIds.Any()) { <span style="color:var(--accent-color);margin-right:1rem;"><span class="industrial-num">@selectedIds.Count</span> انتخاب‌شده</span> }
+            </div>
+            <button style="font-size:0.8rem;color:var(--text-muted);background:none;border:none;cursor:pointer;font-family:var(--font-fa);" @onclick="ToggleAll">
+                @(selectedIds.Count == filtered.Count && filtered.Any() ? "لغو همه" : "انتخاب همه")
+            </button>
+        </div>
+    </div>
+
+    <!-- ─── جدول سفارشات برای انتخاب ─── -->
+    <div class="card" style="padding:0;overflow-x:auto;">
+        <table class="industrial-table" style="width:100%;border-collapse:collapse;">
+            <thead>
+                <tr>
+                    <th style="padding:0.75rem 1rem;width:40px;text-align:center;">
+                        <input type="checkbox" @onchange="ToggleAll" checked="@(selectedIds.Count == filtered.Count && filtered.Any())" style="cursor:pointer;width:16px;height:16px;" />
+                    </th>
+                    <th style="padding:0.75rem 1.25rem;text-align:right;">سفارش</th>
+                    <th style="padding:0.75rem 1.25rem;text-align:right;">مشتری</th>
+                    <th style="padding:0.75rem 1.25rem;text-align:right;">وضعیت</th>
+                    <th style="padding:0.75rem 1.25rem;text-align:right;">اولویت</th>
+                    <th style="padding:0.75rem 1.25rem;text-align:right;">تاریخ سفارش</th>
+                    <th style="padding:0.75rem 1.25rem;text-align:right;">تاریخ تحویل</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (isLoading)
+                {
+                    <tr><td colspan="7" style="padding:3rem;text-align:center;"><div class="loader-pulse-ring" style="margin:0 auto;"></div></td></tr>
+                }
+                else if (!filtered.Any())
+                {
+                    <tr><td colspan="7" style="padding:4rem;text-align:center;color:var(--text-muted);">سفارشی یافت نشد.</td></tr>
+                }
+                else
+                {
+                    @foreach (var o in filtered)
+                    {
+                        var sel = selectedIds.Contains(o.Id);
+                        var stage = o.GetWorkflowStage();
+                        <tr class="order-select-row @(sel ? "selected" : "")" style="border-bottom:1px solid var(--border-color);" @onclick="() => ToggleSelect(o.Id)">
+                            <td style="padding:0.75rem 1rem;text-align:center;" @onclick:stopPropagation="true">
+                                <input type="checkbox" checked="@sel" @onchange="() => ToggleSelect(o.Id)" style="cursor:pointer;width:16px;height:16px;" />
+                            </td>
+                            <td style="padding:0.75rem 1.25rem;">
+                                <div class="industrial-num" style="color:var(--primary-color);font-weight:bold;">@o.OrderNumber</div>
+                                @if (!string.IsNullOrEmpty(o.InvoiceNumber))
+                                {
+                                    <div class="industrial-num" style="font-size:0.75rem;color:var(--accent-color);">@o.InvoiceNumber</div>
+                                }
+                            </td>
+                            <td style="padding:0.75rem 1.25rem;font-weight:600;">@o.CustomerName</td>
+                            <td style="padding:0.75rem 1.25rem;">
+                                @if (stage == 1)      { <span class="badge badge-registered">ثبت شده</span> }
+                                else if (stage == 2)  { <span class="badge badge-inprod">در تولید</span> }
+                                else                  { <span class="badge badge-ready">آماده تحویل</span> }
+                            </td>
+                            <td style="padding:0.75rem 1.25rem;">
+                                @if (o.ProductionPriority == "فوری") { <span class="badge badge-urgent">فوری</span> }
+                                else if (o.ProductionPriority == "کم‌اولویت") { <span class="badge badge-low">کم‌اولویت</span> }
+                                else { <span class="badge badge-normal">عادی</span> }
+                            </td>
+                            <td style="padding:0.75rem 1.25rem;" class="industrial-num">@JalaliHelper.ToJalaliString(o.OrderDate)</td>
+                            <td class="industrial-num" style="padding:0.75rem 1.25rem;color:@(o.ExpectedDelivery < DateTime.Now && stage<3 ? "var(--danger)" : "var(--text-muted)");">@JalaliHelper.ToJalaliString(o.ExpectedDelivery)</td>
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+@code {
+    private AppDbContext _db = null!;
+    private List<Order> all = new();
+    private List<Order> filtered = new();
+    private HashSet<int> selectedIds = new();
+    private bool isLoading = true;
+    private string pageError = "";
+    private string reportType = "production-line";
+    private string searchQ = "";
+    private string fStatus = "";
+    private string fPriority = "";
+    private DateTime? fDateFrom;
+    private DateTime? fDateTo;
+
+    private static readonly (string Val, string Title, string Desc, string Icon)[] ReportTypes = {
+        ("production-line", "خط تولید", "برای کارگران کارخانه", "🏭"),
+        ("daily",           "گزارش روزانه", "لیست تولید امروز", "📅"),
+        ("weekly",          "گزارش هفتگی", "برنامه‌ریزی هفتگی", "📆"),
+        ("custom",          "بازه دلخواه", "سفارشی مدیر", "🗓")
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        _db = await DbFactory.CreateDbContextAsync();
+        await LoadData();
+    }
+
+    private async Task LoadData()
+    {
+        isLoading = true; pageError = "";
+        try
+        {
+            all = await _db.Orders.AsNoTracking().OrderByDescending(o => o.Id).ToListAsync();
+            ApplyFilter();
+        }
+        catch (Exception ex) { pageError = ex.Message; }
+        finally { isLoading = false; }
+    }
+
+    private void ApplyFilter()
+    {
+        var q = all.AsEnumerable();
+        if (!string.IsNullOrEmpty(fStatus)) q = q.Where(o => o.Status == fStatus);
+        if (!string.IsNullOrEmpty(fPriority)) q = q.Where(o => o.ProductionPriority == fPriority);
+        if (fDateFrom.HasValue) q = q.Where(o => o.ExpectedDelivery.Date >= fDateFrom.Value.Date);
+        if (fDateTo.HasValue) q = q.Where(o => o.ExpectedDelivery.Date <= fDateTo.Value.Date);
+        if (!string.IsNullOrWhiteSpace(searchQ))
+        {
+            var s = searchQ.ToLower();
+            q = q.Where(o => o.CustomerName.ToLower().Contains(s) || o.OrderNumber.ToLower().Contains(s));
+        }
+        // برای گزارش روزانه، اعمال فیلتر تاریخ امروز
+        if (reportType == "daily")
+            q = q.Where(o => o.ExpectedDelivery.Date == DateTime.Today);
+        // برای گزارش هفتگی، این هفته
+        else if (reportType == "weekly")
+        {
+            var weekStart = DateTime.Today.AddDays(-(int)DateTime.Today.DayOfWeek + 6);
+            var weekEnd = weekStart.AddDays(6);
+            q = q.Where(o => o.ExpectedDelivery.Date >= weekStart && o.ExpectedDelivery.Date <= weekEnd);
+        }
+        filtered = q.ToList();
+        // انتخاب خودکار همه برای گزارش‌های روزانه/هفتگی
+        if (reportType == "daily" || reportType == "weekly")
+            selectedIds = filtered.Select(o => o.Id).ToHashSet();
+    }
+
+    private void ClearFilters()
+    {
+        searchQ = ""; fStatus = ""; fPriority = ""; fDateFrom = null; fDateTo = null;
+        ApplyFilter(); StateHasChanged();
+    }
+
+    private void ToggleSelect(int id) { if (!selectedIds.Remove(id)) selectedIds.Add(id); StateHasChanged(); }
+    private void ToggleAll()
+    {
+        if (selectedIds.Count == filtered.Count && filtered.Any()) selectedIds.Clear();
+        else selectedIds = filtered.Select(o => o.Id).ToHashSet();
+        StateHasChanged();
+    }
+
+    private void GenerateReport()
+    {
+        if (!selectedIds.Any()) return;
+        var ids = string.Join(",", selectedIds);
+        NavManager.NavigateTo($"/print/batch-orders/{ids}?type={reportType}");
+    }
+
+    public void Dispose() => _db?.Dispose();
+}

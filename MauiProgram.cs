@@ -200,6 +200,26 @@ namespace SmartERP
                 "ALTER TABLE \"CompanySettings\" ADD COLUMN \"CeoSignatureBase64\" TEXT NOT NULL DEFAULT ''",
                 "ALTER TABLE \"CompanySettings\" ADD COLUMN \"DefaultTheme\" TEXT NOT NULL DEFAULT 'dark'",
                 "ALTER TABLE \"CompanySettings\" ADD COLUMN \"CardNumber\" TEXT NOT NULL DEFAULT ''",
+
+                // ── Orders (v2: گردش‌کار تولید) ──────────────────────────────
+                "ALTER TABLE \"Orders\" ADD COLUMN \"ProductionPriority\" TEXT NOT NULL DEFAULT 'عادی'",
+                "ALTER TABLE \"Orders\" ADD COLUMN \"ProductionStartDate\" TEXT",
+                "ALTER TABLE \"Orders\" ADD COLUMN \"CompletedAt\" TEXT",
+
+                // ── Invoices (v2: چهارچوب + پلاک ساختارمند + مالیات سفارشی) ─
+                "ALTER TABLE \"Invoices\" ADD COLUMN \"FrameOrderEnabled\" INTEGER NOT NULL DEFAULT 0",
+                "ALTER TABLE \"Invoices\" ADD COLUMN \"FrameOrdersJson\" TEXT NOT NULL DEFAULT '[]'",
+                "ALTER TABLE \"Invoices\" ADD COLUMN \"VehiclePlatePart1\" TEXT NOT NULL DEFAULT ''",
+                "ALTER TABLE \"Invoices\" ADD COLUMN \"VehiclePlateLetter\" TEXT NOT NULL DEFAULT ''",
+                "ALTER TABLE \"Invoices\" ADD COLUMN \"VehiclePlatePart2\" TEXT NOT NULL DEFAULT ''",
+                "ALTER TABLE \"Invoices\" ADD COLUMN \"VehiclePlateRegion\" TEXT NOT NULL DEFAULT ''",
+                "ALTER TABLE \"Invoices\" ADD COLUMN \"CustomTaxRate\" REAL NOT NULL DEFAULT -1",
+
+                // ── Products (v2: چهارچوب فلزی) ──────────────────────────────
+                "ALTER TABLE \"Products\" ADD COLUMN \"IsFrameProduct\" INTEGER NOT NULL DEFAULT 0",
+                "ALTER TABLE \"Products\" ADD COLUMN \"FrameType\" TEXT NOT NULL DEFAULT 'چهارچوب فرانسوی'",
+                "ALTER TABLE \"Products\" ADD COLUMN \"OpeningDirection\" TEXT NOT NULL DEFAULT 'راست‌باز'",
+                "ALTER TABLE \"Products\" ADD COLUMN \"TaxRate\" REAL NOT NULL DEFAULT -1",
             };
 
             foreach (var sql in columnUpgrades)
