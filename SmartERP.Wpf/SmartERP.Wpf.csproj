@@ -2,35 +2,51 @@
 
   <PropertyGroup>
     <!--
-      net8.0-windows: Works on Windows 8.1+.
-      For STRICT Windows 7 SP1 support change to net6.0-windows and
-      downgrade all package versions to their 6.x equivalents.
+      ════════════════════════════════════════════════════════════════
+      WINDOWS 7 SP1 NOTE
+      ════════════════════════════════════════════════════════════════
+      .NET 8 officially supports Windows 8.1 and later.
+      For true Windows 7 SP1 support, change this line to:
+          <TargetFramework>net6.0-windows</TargetFramework>
+      AND change every package version below to its 6.x equivalent
+      (see the commented-out lines in the <ItemGroup> below).
+      ════════════════════════════════════════════════════════════════
     -->
-    <OutputType>WinExe</OutputType>
     <TargetFramework>net8.0-windows</TargetFramework>
+    <OutputType>WinExe</OutputType>
+
     <!--
-      AssemblyName = SmartERP (not SmartERP.Wpf) so that:
-        1. The auto-generated CSS bundle is "SmartERP.styles.css"
-           (matches the existing reference in wwwroot/index.html)
-        2. The Razor router can find pages without changing any .razor file.
+      AssemblyName = SmartERP (NOT SmartERP.Wpf) for two reasons:
+        1. Razor SDK generates the scoped-CSS bundle as "<AssemblyName>.styles.css".
+           Setting it to "SmartERP" means the bundle is "SmartERP.styles.css",
+           matching the existing href in wwwroot/index.html with zero HTML changes.
+        2. The Blazor router scans the assembly for [Route] attributes.
+           Using "SmartERP" keeps the same assembly identity as the MAUI build,
+           so no @page or @using directives need to change.
     -->
     <AssemblyName>SmartERP</AssemblyName>
     <RootNamespace>SmartERP</RootNamespace>
+
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
-    <!-- Remove if no .ico file is available -->
-    <!-- <ApplicationIcon>Resources\appicon.ico</ApplicationIcon> -->
     <Platforms>x64;x86</Platforms>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-    <Optimize>true</Optimize>
+
+    <!-- Suppress the "no icon" warning if no .ico file is present -->
+    <ApplicationIcon></ApplicationIcon>
+    <Optimize Condition="'$(Configuration)' == 'Release'">true</Optimize>
   </PropertyGroup>
 
   <ItemGroup>
     <!--
-      Microsoft.AspNetCore.Components.WebView.Wpf requires WebView2 Runtime.
-      On Windows 7 SP1: install WebView2 Fixed-Version runtime (v86.x series).
-      Verify the latest 8.x version at: https://www.nuget.org/packages/Microsoft.AspNetCore.Components.WebView.Wpf
+      ── Current (net8.0-windows, Windows 8.1+) ───────────────────
+      For net6.0-windows / Windows 7 SP1, replace with:
+          Microsoft.AspNetCore.Components.WebView.Wpf   6.0.312
+          Microsoft.EntityFrameworkCore.Sqlite          7.0.20
+          Microsoft.EntityFrameworkCore.Tools           7.0.20
+          Microsoft.EntityFrameworkCore.Design          7.0.20
+          Microsoft.Extensions.Logging.Debug            6.0.0
     -->
     <PackageReference Include="Microsoft.AspNetCore.Components.WebView.Wpf" Version="8.0.14" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="8.0.10" />
@@ -45,7 +61,11 @@
     <PackageReference Include="Microsoft.Extensions.Logging.Debug" Version="8.0.1" />
   </ItemGroup>
 
-  <!-- Copy wwwroot static files to output directory -->
+  <!--
+    wwwroot static assets must be copied to the output directory.
+    BlazorWebView loads them from disk at runtime — they are not served
+    from a web server the way they would be in a Blazor Server/WASM app.
+  -->
   <ItemGroup>
     <Content Update="wwwroot\**\*">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>

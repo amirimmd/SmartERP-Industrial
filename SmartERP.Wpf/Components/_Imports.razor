@@ -1,0 +1,29 @@
+@* ─────────────────────────────────────────────────────────────────────────────
+   Global Blazor imports for SmartERP.Wpf
+   Namespaces reflect the 'namespace' declarations in each .cs/.razor file.
+   RootNamespace in the .csproj is "SmartERP", so all paths begin with SmartERP.
+   DO NOT change these to SmartERP.Wpf.* — those namespaces do not exist.
+   ───────────────────────────────────────────────────────────────────────────── *@
+
+@* .NET BCL *@
+@using System.Net.Http
+@using System.Text.Json
+@using System.Linq
+
+@* ASP.NET Core / Blazor *@
+@using Microsoft.AspNetCore.Components.Forms
+@using Microsoft.AspNetCore.Components.Routing
+@using Microsoft.AspNetCore.Components.Web
+@using Microsoft.AspNetCore.Components.Web.Virtualization
+@using Microsoft.JSInterop
+
+@* EF Core *@
+@using Microsoft.EntityFrameworkCore
+
+@* SmartERP namespaces — all files keep their original namespace declarations *@
+@using SmartERP
+@using SmartERP.Core
+@using SmartERP.Infrastructure
+@using SmartERP.UI
+@using SmartERP.Helpers
+@using SmartERP.Components
