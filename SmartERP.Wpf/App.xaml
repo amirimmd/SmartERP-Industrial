@@ -1,0 +1,12 @@
+<Application x:Class="SmartERP.App"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Startup="Application_Startup">
+    <Application.Resources>
+        <!--
+            Global WPF resources can be added here.
+            The Blazor service provider is wired in code-behind (App.xaml.cs)
+            and injected into MainWindow at construction time.
+        -->
+    </Application.Resources>
+</Application>

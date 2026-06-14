@@ -1,0 +1,22 @@
+@using SmartERP.UI
+@using Microsoft.AspNetCore.Components.Routing
+
+@*
+    AppAssembly changed from typeof(MauiProgram).Assembly to typeof(Routes).Assembly
+    so this file does not depend on any MAUI-specific class.
+    typeof(Routes) is always in the current executing assembly, which is where all
+    the [Route]-decorated pages live after the folder copy.
+*@
+<Router AppAssembly="@typeof(Routes).Assembly">
+    <Found Context="routeData">
+        <RouteView RouteData="@routeData" DefaultLayout="@typeof(SmartERP.UI.MainLayout)" />
+        <FocusOnNavigate RouteData="@routeData" Selector="h1" />
+    </Found>
+    <NotFound>
+        <LayoutView Layout="@typeof(SmartERP.UI.MainLayout)">
+            <p role="alert" style="color: #ef4444; text-align: center; margin-top: 2rem; font-size: 1.2rem;">
+                صفحه مورد نظر در سیستم یافت نشد.
+            </p>
+        </LayoutView>
+    </NotFound>
+</Router>

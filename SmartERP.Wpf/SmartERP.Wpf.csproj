@@ -1,0 +1,55 @@
+<Project Sdk="Microsoft.NET.Sdk.Razor">
+
+  <PropertyGroup>
+    <!--
+      net8.0-windows: Works on Windows 8.1+.
+      For STRICT Windows 7 SP1 support change to net6.0-windows and
+      downgrade all package versions to their 6.x equivalents.
+    -->
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <!--
+      AssemblyName = SmartERP (not SmartERP.Wpf) so that:
+        1. The auto-generated CSS bundle is "SmartERP.styles.css"
+           (matches the existing reference in wwwroot/index.html)
+        2. The Razor router can find pages without changing any .razor file.
+    -->
+    <AssemblyName>SmartERP</AssemblyName>
+    <RootNamespace>SmartERP</RootNamespace>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UseWPF>true</UseWPF>
+    <!-- Remove if no .ico file is available -->
+    <!-- <ApplicationIcon>Resources\appicon.ico</ApplicationIcon> -->
+    <Platforms>x64;x86</Platforms>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <Optimize>true</Optimize>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!--
+      Microsoft.AspNetCore.Components.WebView.Wpf requires WebView2 Runtime.
+      On Windows 7 SP1: install WebView2 Fixed-Version runtime (v86.x series).
+      Verify the latest 8.x version at: https://www.nuget.org/packages/Microsoft.AspNetCore.Components.WebView.Wpf
+    -->
+    <PackageReference Include="Microsoft.AspNetCore.Components.WebView.Wpf" Version="8.0.14" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="8.0.10" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Tools" Version="8.0.10">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="8.0.10">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+    <PackageReference Include="Microsoft.Extensions.Logging.Debug" Version="8.0.1" />
+  </ItemGroup>
+
+  <!-- Copy wwwroot static files to output directory -->
+  <ItemGroup>
+    <Content Update="wwwroot\**\*">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
+</Project>
